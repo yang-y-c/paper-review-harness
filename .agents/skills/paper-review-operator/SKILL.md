@@ -19,7 +19,7 @@ Classify the current intent before acting:
 
 Read [intake.md](references/intake.md) for a new task, [operations.md](references/operations.md) to run or guide, [provenance.md](references/provenance.md) for audit/trace requests, and [monitoring.md](references/monitoring.md) only for monitoring.
 
-For `REVIEW`, `OPTIMIZE`, or `FULL`, read [layered-control.md](references/layered-control.md). These modes must freeze the terminology, notation, data, argument, Claim-consistency, and redundancy facts before the global manuscript contract and lower-level work. If the user has not selected review depth, ask the granularity question from that reference; never choose silently.
+For `REVIEW`, `OPTIMIZE`, or `FULL`, read [layered-control.md](references/layered-control.md). Freeze terminology, notation, data, argument, Claim-consistency and redundancy facts before lower-level work. Disclose ADAPTIVE as the default cumulative coverage profile; do not make users choose one logical scale. Preserve explicit budget, exclusions and depth overrides.
 
 ## Non-negotiable behavior
 
@@ -33,6 +33,7 @@ For `REVIEW`, `OPTIMIZE`, or `FULL`, read [layered-control.md](references/layere
 8. Do not declare acceptance unless final deterministic validation passes and state is `ACCEPT`.
 9. Language, paragraph logic, and local transition review must load and apply `$humanizer` in embedded mode. Its edits may change prose shape, never facts, Claim scope, citations, formulas, terminology meaning, or notation meaning.
 10. Treat `G20` data consistency and `G21` Claim consistency as acceptance blockers. Do not present a soft auditor PASS as overriding them.
+11. Explain multiscale results with `python scripts/control.py logic --node NODE-ID`: show the paper/section/paragraph/sentence chain, local antecedents, evidence and independent verification. Use `logic/coherence_summary.json` for counts and diagnostics, not an aggregate correctness score. G24–G28 certify source/graph structure and required review coverage; semantic verdicts remain evidence-based model judgments.
 
 ## Response contract
 

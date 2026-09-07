@@ -10,4 +10,5 @@ Read the paper-review skill, Claim rules, Issue rules, the assigned Claim, its d
 Search for counterexamples, omitted admissible cases, hidden assumptions, non-equivalent transformations, stronger conclusions than premises justify, unsupported universality or optimality, alternative interpretations, and failure at scope boundaries. If the Claim survives a line of attack, record what was tested; do not declare truth beyond the available evidence.
 
 Return only raw JSON conforming to `.review/schemas/review-output.schema.json` with `agent` set to `challenger`.
+For LOCAL_COVERAGE_CHALLENGE assignments, return logic-coverage-output.schema.json. Independently read the complete supplied local group and check every node for missing antecedents, wrong attachment, long-distance return, missing premise and multiple supporting parents. Do not read mapper rationale/confidence or mapper run files. Add only sparse source-grounded relations using the fixed ontology. Distinguish descriptive roots from missing inferential premises. Ordinary awkward transitions are diagnostics; a core unsupported dependency is a substantive finding.
 """

@@ -1,0 +1,700 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "status"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "status": {
+          "enum": [
+            "NOT_RUN",
+            "STALE"
+          ]
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "status",
+        "run_id",
+        "updated_at",
+        "mode",
+        "inventory",
+        "bindings",
+        "scheduler",
+        "records",
+        "bottom_up",
+        "passes",
+        "logic_graph",
+        "coarse_logic_graph"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "status": {
+          "const": "CURRENT"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "mode": {
+          "enum": [
+            "MACRO_ONLY",
+            "SECTION",
+            "SUBSECTION",
+            "PARAGRAPH",
+            "SENTENCE",
+            "ADAPTIVE"
+          ]
+        },
+        "inventory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema_version",
+            "source_snapshot",
+            "source_files",
+            "units",
+            "errors"
+          ],
+          "properties": {
+            "schema_version": {
+              "const": 1
+            },
+            "source_snapshot": {
+              "$ref": "source-snapshot.schema.json#/$defs/source_snapshot"
+            },
+            "source_files": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "units": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "parent_id",
+                  "level",
+                  "depth",
+                  "text",
+                  "path",
+                  "start",
+                  "end",
+                  "location",
+                  "ordinal"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "parent_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "level": {
+                    "enum": [
+                      "PAPER",
+                      "SECTION",
+                      "PARAGRAPH",
+                      "SENTENCE"
+                    ]
+                  },
+                  "depth": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "start": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "end": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "location": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "ordinal": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            },
+            "errors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "scheduler": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "policy",
+            "routes",
+            "selected_sentence_ids"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "MACRO_ONLY",
+                "SECTION",
+                "SUBSECTION",
+                "PARAGRAPH",
+                "SENTENCE",
+                "ADAPTIVE"
+              ]
+            },
+            "policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "section_threshold",
+                "sentence_threshold",
+                "weights"
+              ],
+              "properties": {
+                "section_threshold": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "sentence_threshold": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "weights": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  }
+                }
+              }
+            },
+            "routes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "node_id",
+                  "paragraph_id",
+                  "score",
+                  "reasons",
+                  "selected",
+                  "decision",
+                  "deep_review"
+                ],
+                "properties": {
+                  "node_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "paragraph_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "reasons": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "selected": {
+                    "type": "boolean"
+                  },
+                  "decision": {
+                    "enum": [
+                      "FULL_SENTENCE",
+                      "RISK_THRESHOLD",
+                      "BELOW_THRESHOLD",
+                      "DEPTH_LIMIT",
+                      "LOCAL_CONTEXT"
+                    ]
+                  },
+                  "deep_review": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "selected_sentence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "node_id",
+                  "purpose",
+                  "inputs",
+                  "outputs",
+                  "logic_chain",
+                  "claim_ids",
+                  "status"
+                ],
+                "properties": {
+                  "node_id": {
+                    "const": "PAPER"
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "outputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "logic_chain": {
+                    "$ref": "macro-output.schema.json#/properties/contract/properties/logic_chain"
+                  },
+                  "claim_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "status": {
+                    "enum": [
+                      "PASS",
+                      "GAP"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "node_id",
+                  "hierarchy_id",
+                  "purpose",
+                  "inputs",
+                  "outputs",
+                  "claim_ids",
+                  "transition_in",
+                  "transition_out",
+                  "status"
+                ],
+                "properties": {
+                  "node_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "hierarchy_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "outputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "claim_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "transition_in": {
+                    "type": "string"
+                  },
+                  "transition_out": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "PASS",
+                      "REVISE",
+                      "NEEDS_AUTHOR"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "node_id",
+                  "purpose",
+                  "rhetorical_role",
+                  "inputs",
+                  "outputs",
+                  "claim_ids",
+                  "terminology_ids",
+                  "notation_ids",
+                  "argument_node_ids",
+                  "premises",
+                  "inference",
+                  "conclusion",
+                  "discourse_relation",
+                  "transition_in",
+                  "transition_out",
+                  "parent_alignment",
+                  "risk_signals",
+                  "status",
+                  "issue_ids",
+                  "humanizer_patterns",
+                  "recommended_action",
+                  "main_claim",
+                  "topic",
+                  "sentence_type"
+                ],
+                "properties": {
+                  "node_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "rhetorical_role": {
+                    "enum": [
+                      "PROBLEM",
+                      "BACKGROUND",
+                      "GAP",
+                      "DEFINITION",
+                      "ASSUMPTION",
+                      "METHOD",
+                      "DERIVATION",
+                      "CLAIM",
+                      "EVIDENCE",
+                      "RESULT",
+                      "INTERPRETATION",
+                      "COMPARISON",
+                      "LIMITATION",
+                      "TRANSITION",
+                      "SUMMARY"
+                    ]
+                  },
+                  "inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "outputs": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "claim_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "terminology_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "notation_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "argument_node_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "premises": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "inference": {
+                    "type": "string"
+                  },
+                  "conclusion": {
+                    "type": "string"
+                  },
+                  "discourse_relation": {
+                    "type": "string"
+                  },
+                  "transition_in": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "transition_out": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "parent_alignment": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "risk_signals": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                      "enum": [
+                        "MISSING_PREMISE",
+                        "SCOPE_JUMP",
+                        "UNSUPPORTED_CAUSALITY",
+                        "AMBIGUOUS_REFERENCE",
+                        "FORMULA_CONCLUSION",
+                        "STRONG_CLAIM",
+                        "TRANSITION_GAP"
+                      ]
+                    }
+                  },
+                  "status": {
+                    "enum": [
+                      "PASS",
+                      "GAP",
+                      "NEEDS_AUTHOR"
+                    ]
+                  },
+                  "issue_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "humanizer_patterns": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "uniqueItems": true
+                  },
+                  "recommended_action": {
+                    "type": "string"
+                  },
+                  "main_claim": {
+                    "type": "string"
+                  },
+                  "topic": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sentence_type": {
+                    "enum": [
+                      "CLAIM",
+                      "PREMISE",
+                      "EVIDENCE",
+                      "DEFINITION",
+                      "ASSUMPTION",
+                      "INFERENCE",
+                      "RESULT",
+                      "INTERPRETATION",
+                      "TRANSITION",
+                      "DESCRIPTION",
+                      "OTHER",
+                      "NOT_APPLICABLE"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "bottom_up": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "node_id",
+              "child_ids",
+              "established_output",
+              "supports_parent",
+              "evidence",
+              "status",
+              "issue_ids"
+            ],
+            "properties": {
+              "node_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "child_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "uniqueItems": true
+              },
+              "established_output": {
+                "type": "string",
+                "minLength": 1
+              },
+              "supports_parent": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "status": {
+                "enum": [
+                  "PASS",
+                  "GAP",
+                  "NEEDS_AUTHOR"
+                ]
+              },
+              "issue_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        "passes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "stage",
+              "run_id",
+              "output"
+            ],
+            "properties": {
+              "stage": {
+                "enum": [
+                  "PARAGRAPH",
+                  "SENTENCE",
+                  "BOTTOM_UP"
+                ]
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "output": {
+                "$ref": "coherence-output.schema.json"
+              }
+            }
+          }
+        },
+        "logic_graph": {
+          "$ref": "logic-graph.schema.json"
+        },
+        "coarse_logic_graph": {
+          "$ref": "logic-graph.schema.json"
+        }
+      }
+    }
+  ]
+}

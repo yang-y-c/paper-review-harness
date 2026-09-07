@@ -33,6 +33,7 @@ from paper_review_lib import (
 from validators import evaluate, render_text
 from admission import load_request, require_admission, save_request
 from provenance import append_event
+from coherence import build_inventory, run_coherence, select_sections
 
 
 RUN_PLANS = {
@@ -74,6 +75,15 @@ RUN_PLANS = {
         "DETERMINISTIC_VALIDATION",
     ],
 }
+
+# Preserve the compatibility phase label while exposing the actual new stages
+# in dry-run plans. The runtime follows these stages in granular_control.
+for _mode in ("review", "optimize", "full"):
+    _index = RUN_PLANS[_mode].index("GRANULAR_LANGUAGE_REVIEW") + 1
+    RUN_PLANS[_mode][_index:_index] = [
+        "COHERENCE_PARAGRAPH", "LOCAL_LOGIC_RECOVERY", "LOCAL_COVERAGE_CHALLENGE",
+        "REMOTE_RELATION_VERIFICATION", "ADAPTIVE_SENTENCE_RECOVERY", "COHERENCE_BOTTOM_UP",
+    ]
 
 
 class Workflow:
@@ -203,6 +213,9 @@ class Workflow:
         return ledger
 
     def hierarchy_control(self, granularity: str) -> dict[str, Any]:
+        self.coherence_inventory = build_inventory(self.root)
+        if self.coherence_inventory["errors"]:
+            raise HarnessError("Source inventory blocked: " + "; ".join(self.coherence_inventory["errors"]))
         if granularity == "MACRO_ONLY":
             return mark_hierarchy_not_applicable(
                 self.root, "The user explicitly selected macro-only review"
@@ -226,6 +239,8 @@ class Workflow:
                 "granularity": granularity,
                 "global_contract": contract["payload"]["contract"],
                 "claims": claims,
+                "source_sections": select_sections(self.coherence_inventory, granularity),
+                "source_binding_rule": "Return exactly one hierarchy node per source_sections entry. Copy its id into source_unit_id. Preserve source parent relations; synthetic Front matter/Abstract nodes are valid sections.",
                 "scope_rule": (
                     "Create SECTION nodes only."
                     if granularity == "SECTION"
@@ -246,6 +261,36 @@ class Workflow:
         )
         if contract["status"] != "CURRENT" or not hierarchy_ready:
             raise HarnessError("Language review requires valid global and hierarchy states")
+        inventory = getattr(self, "coherence_inventory", None) or build_inventory(self.root)
+        registry = run_coherence(self, inventory, granularity)
+        if granularity in {"PARAGRAPH", "SENTENCE", "ADAPTIVE"}:
+            # Keep the old language ledger as a compatibility view of the reviewed
+            # contracts; all authoritative IDs/edges live in coherence_registry.
+            sources = {u["id"]: u for u in inventory["units"]}
+            parents = {n["source_unit_id"]: n["id"] for n in structure["payload"]["nodes"]}
+            units = []
+            for record in registry["records"]:
+                source = sources[record["node_id"]]
+                if source["level"] not in {"PARAGRAPH", "SENTENCE"}:
+                    continue
+                parent = source["parent_id"]
+                if source["level"] == "SENTENCE":
+                    parent = sources[parent]["parent_id"]
+                units.append({
+                    "id": f"U{len(units)+1:04d}", "parent_node_id": parents[parent],
+                    "parent_contract_path": None, "level": source["level"],
+                    "location": source["location"], "purpose_alignment": record["parent_alignment"],
+                    "transition_in": record["transition_in"], "transition_out": record["transition_out"],
+                    "terminology_alignment": ", ".join(record["terminology_ids"]),
+                    "notation_alignment": ", ".join(record["notation_ids"]),
+                    "humanizer_patterns": record["humanizer_patterns"],
+                    "recommended_action": record["recommended_action"],
+                    "status": "REVISE" if record["status"] == "GAP" else record["status"],
+                })
+            output = {"agent": "language_coherence_reviewer", "reviewed_claims": [],
+                      "granularity": granularity, "humanizer_skill": "humanizer", "units": units,
+                      "issues": [], "review_notes": ["Derived from coherence_registry.json; canonical unit IDs and findings are retained there."]}
+            return merge_layer_output(self.root, "language_coherence_reviewer", output, registry["run_id"])
         update_state(self.root, phase="GRANULAR_LANGUAGE_REVIEW")
         run_id = make_run_id("language-coherence")
         update_state(self.root, active_run_id=run_id)
@@ -294,6 +339,7 @@ class Workflow:
                 "granular_review": load_json(
                     self.root / ".review" / "granular_review.json"
                 ),
+                "multiscale_coherence": load_json(self.root / ".review/coherence_registry.json"),
                 "claims": [
                     claim
                     for claim in self.claims_ledger["claims"]
@@ -518,6 +564,7 @@ class Workflow:
             "claims": relevant,
             "global_contract": load_json(self.root / ".review" / "global_contract.json"),
             "hierarchy": load_json(self.root / ".review" / "structure.json"),
+            "multiscale_coherence": load_json(self.root / ".review/coherence_registry.json"),
             "selected_granularity": load_json(
                 self.root / ".review" / "granular_review.json"
             ),

@@ -452,6 +452,7 @@ def _empty_invariant_ledger() -> dict[str, Any]:
 
 
 def reset_layer_ledgers(root: Path) -> None:
+    write_json(root / ".review/coherence_registry.json", {"schema_version": 1, "status": "NOT_RUN"})
     for file_name, schema_name in [
         ("global_contract.json", "global-contract.schema.json"),
         ("structure.json", "structure.schema.json"),
@@ -475,6 +476,12 @@ def reset_layer_ledgers(root: Path) -> None:
 
 
 def invalidate_invariant_ledgers(root: Path, reason: str, run_id: str | None = None) -> None:
+    from logic_graph import invalidate_relations
+    invalidate_relations(root)
+    coherence_path = root / ".review/coherence_registry.json"
+    if coherence_path.is_file():
+        # Full pass outputs remain in immutable invocation logs.
+        write_json(coherence_path, {"schema_version": 1, "status": "STALE"})
     artifacts: list[dict[str, str]] = []
     for file_name, schema_name in INVARIANT_LEDGER.values():
         path = root / ".review" / file_name
@@ -1351,9 +1358,20 @@ class CodexRunner:
         invocation_id: str | None = None,
         finalize_run: bool = True,
         audit_context: dict[str, str | None] | None = None,
+        output_schema: str | None = None,
     ) -> dict[str, Any]:
         profile = load_agent_profile(self.root, agent)
-        schema = schema_path(self.root, AGENT_SCHEMA[agent])
+        schema_name = output_schema or AGENT_SCHEMA[agent]
+        schema_roles = {
+            "coherence-output.schema.json": {"language_coherence_reviewer", "final_integrity_auditor"},
+            "logic-map-output.schema.json": {"argument_reviewer"},
+            "logic-verify-output.schema.json": {"verifier"},
+            "local-logic-output.schema.json": {"argument_reviewer"},
+            "logic-coverage-output.schema.json": {"challenger"},
+        }
+        if output_schema and agent not in schema_roles.get(output_schema, set()):
+            raise HarnessError("Unsupported role/schema combination")
+        schema = schema_path(self.root, schema_name)
         self._run_manifest(run_id)
         invocation_id = invocation_id or agent
         context = audit_context or self._audit_context()
@@ -1365,7 +1383,7 @@ class CodexRunner:
         input_path = invocation_dir / "input.json"
         invocation_path = invocation_dir / "invocation.json"
         effective_schema_path = invocation_dir / "effective-schema.json"
-        write_json(effective_schema_path, bundled_schema(self.root, AGENT_SCHEMA[agent]))
+        write_json(effective_schema_path, bundled_schema(self.root, schema_name))
         prompt = (
             f"You are executing the `{agent}` role for the Paper Review Harness.\n"
             "Follow the repository AGENTS.md and paper-review skill. The role contract is supplied "
@@ -1541,7 +1559,7 @@ class CodexRunner:
             )
         try:
             output = load_json(output_path)
-            validate_with_schema(self.root, AGENT_SCHEMA[agent], output)
+            validate_with_schema(self.root, schema_name, output)
         except HarnessError as exc:
             invocation["status"] = "FAILED"
             invocation["error"] = str(exc)
@@ -1618,6 +1636,10 @@ def make_run_id(label: str) -> str:
 
 def status_summary(root: Path) -> dict[str, Any]:
     state = load_state(root)
+    coherence = load_json(root / ".review/coherence_registry.json")
+    coherence_status = coherence["status"]
+    if coherence_status == "CURRENT" and coherence["inventory"]["source_snapshot"] != manuscript_snapshot(root):
+        coherence_status = "STALE"
     claims = load_json(root / ".review" / "claims.json")["claims"]
     issues = load_json(root / ".review" / "issues.json")["issues"]
     counts: dict[str, int] = {}
@@ -1658,5 +1680,6 @@ def status_summary(root: Path) -> dict[str, Any]:
             "hierarchy": load_json(root / ".review" / "structure.json")["status"],
             "granular_language": load_json(root / ".review" / "granular_review.json")["status"],
             "final_audit": load_json(root / ".review" / "final_audit.json")["status"],
+            "multiscale_coherence": coherence_status,
         },
     }

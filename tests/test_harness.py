@@ -579,6 +579,16 @@ class HarnessTestCase(unittest.TestCase):
             "audit-run",
         )
         report = evaluate(self.root, final=True)
+        # Legacy status flags alone must no longer certify multiscale coverage.
+        self.assertFalse(report["passed"])
+        self.assertIn("G24", {c["id"] for c in report["checks"] if c["status"] == "FAIL"})
+        from coherence import run_coherence
+        from coherence_fixtures import FixtureRunner, bind_hierarchy
+        from review import Workflow
+        workflow = Workflow(self.root)
+        workflow.runner = FixtureRunner()
+        run_coherence(workflow, bind_hierarchy(self.root), "ADAPTIVE")
+        report = evaluate(self.root, final=True)
         self.assertTrue(report["passed"], report)
 
     def test_layered_plan_is_top_down_and_ends_with_final_audit(self) -> None:

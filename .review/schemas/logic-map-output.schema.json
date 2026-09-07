@@ -1,0 +1,155 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "agent",
+    "relations"
+  ],
+  "properties": {
+    "agent": {
+      "const": "argument_reviewer"
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "relation",
+          "source_evidence",
+          "target_evidence",
+          "rationale",
+          "confidence"
+        ],
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relation": {
+            "enum": [
+              "PREPARES",
+              "DEPENDS_ON",
+              "EXTENDS",
+              "SPECIALIZES",
+              "APPLIES",
+              "VALIDATES",
+              "COMPARES",
+              "CONTRASTS",
+              "PARALLEL",
+              "SYNTHESIZES",
+              "SEQUENCE",
+              "ELABORATION",
+              "CAUSE_EFFECT",
+              "EFFECT_EXPLANATION",
+              "CONTRAST",
+              "GENERAL_TO_SPECIFIC",
+              "SPECIFIC_TO_GENERAL",
+              "PROBLEM_RESPONSE",
+              "CLAIM_EVIDENCE",
+              "EVIDENCE_CLAIM",
+              "CONDITION_RESULT",
+              "DEFINITION_APPLICATION",
+              "METHOD_RESULT",
+              "RESULT_INTERPRETATION",
+              "EXAMPLE",
+              "RESTATEMENT",
+              "QUALIFICATION",
+              "EXPLANATION",
+              "JUSTIFICATION",
+              "INFERENCE",
+              "CONDITION",
+              "RESULT",
+              "SPECIFICATION",
+              "EXCEPTION",
+              "REALIZES",
+              "SUPPORTS",
+              "DECOMPOSES",
+              "INSTANTIATES",
+              "ALIGNS_WITH",
+              "SUMMARIZES",
+              "ABSTRACTS",
+              "BACKGROUND_PROBLEM",
+              "PROBLEM_GAP",
+              "GAP_OBJECTIVE",
+              "OBJECTIVE_METHOD",
+              "THEORY_METHOD",
+              "METHOD_VALIDATION",
+              "VALIDATION_RESULT",
+              "EVIDENCE_CONCLUSION",
+              "THEORY_APPLICATION",
+              "NO_RELATION"
+            ]
+          },
+          "source_evidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "unit_id",
+              "start",
+              "end",
+              "text"
+            ],
+            "properties": {
+              "unit_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "start": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "target_evidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "unit_id",
+              "start",
+              "end",
+              "text"
+            ],
+            "properties": {
+              "unit_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "start": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

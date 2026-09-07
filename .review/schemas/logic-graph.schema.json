@@ -1,0 +1,441 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "ontology_version",
+    "source_snapshot",
+    "run_id",
+    "candidate_graph",
+    "relations",
+    "retired_relations",
+    "reused_count",
+    "local_graphs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ontology_version": {
+      "const": "logic_ontology_v1"
+    },
+    "source_snapshot": {
+      "$ref": "source-snapshot.schema.json#/$defs/source_snapshot"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidate_graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ontology_version",
+        "candidate_edges",
+        "unresolved_references",
+        "duplicate_labels",
+        "claim_stars"
+      ],
+      "properties": {
+        "ontology_version": {
+          "const": "logic_ontology_v1"
+        },
+        "candidate_edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "source_id",
+              "target_id",
+              "scale",
+              "reasons",
+              "critical",
+              "priority"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "target_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "scale": {
+                "enum": [
+                  "PAPER",
+                  "SECTION",
+                  "PARAGRAPH",
+                  "SENTENCE",
+                  "CROSS"
+                ]
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "critical": {
+                "type": "boolean"
+              },
+              "priority": {
+                "enum": [
+                  "NORMAL",
+                  "HIGH"
+                ]
+              }
+            }
+          }
+        },
+        "unresolved_references": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_id",
+              "reference"
+            ],
+            "properties": {
+              "source_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reference": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "duplicate_labels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "claim_stars": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "claim_id",
+              "source_unit_ids",
+              "dependencies",
+              "evidence",
+              "locations",
+              "scope"
+            ],
+            "properties": {
+              "claim_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source_unit_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "dependencies": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "locations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "scope": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "source_id",
+          "target_id",
+          "scale",
+          "reasons",
+          "critical",
+          "priority",
+          "relation",
+          "mapper",
+          "verification",
+          "fingerprint",
+          "status",
+          "mapper_run_id",
+          "verifier_run_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scale": {
+            "enum": [
+              "PAPER",
+              "SECTION",
+              "PARAGRAPH",
+              "SENTENCE",
+              "CROSS"
+            ]
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "priority": {
+            "enum": [
+              "NORMAL",
+              "HIGH"
+            ]
+          },
+          "relation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mapper": {
+            "$ref": "logic-map-output.schema.json#/properties/relations/items"
+          },
+          "verification": {
+            "$ref": "logic-verify-output.schema.json#/properties/verifications/items"
+          },
+          "fingerprint": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "PROPOSED",
+              "CONFIRMED",
+              "DISPUTED",
+              "UNCERTAIN",
+              "STALE",
+              "REMOVED"
+            ]
+          },
+          "mapper_run_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "verifier_run_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "retired_relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "source_id",
+          "target_id",
+          "scale",
+          "reasons",
+          "critical",
+          "priority",
+          "relation",
+          "mapper",
+          "verification",
+          "fingerprint",
+          "status",
+          "mapper_run_id",
+          "verifier_run_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scale": {
+            "enum": [
+              "PAPER",
+              "SECTION",
+              "PARAGRAPH",
+              "SENTENCE",
+              "CROSS"
+            ]
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "priority": {
+            "enum": [
+              "NORMAL",
+              "HIGH"
+            ]
+          },
+          "relation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mapper": {
+            "$ref": "logic-map-output.schema.json#/properties/relations/items"
+          },
+          "verification": {
+            "$ref": "logic-verify-output.schema.json#/properties/verifications/items"
+          },
+          "fingerprint": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "PROPOSED",
+              "CONFIRMED",
+              "DISPUTED",
+              "UNCERTAIN",
+              "STALE",
+              "REMOVED"
+            ]
+          },
+          "mapper_run_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "verifier_run_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "reused_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "local_graphs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "group",
+          "fingerprint",
+          "mapper_run_id",
+          "challenge_run_id",
+          "mapped",
+          "challenge"
+        ],
+        "properties": {
+          "group": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "scale",
+              "parent_id",
+              "unit_ids"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "scale": {
+                "enum": [
+                  "SECTION",
+                  "PARAGRAPH",
+                  "SENTENCE"
+                ]
+              },
+              "parent_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "unit_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "fingerprint": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mapper_run_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "challenge_run_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mapped": {
+            "$ref": "local-logic-output.schema.json"
+          },
+          "challenge": {
+            "$ref": "logic-coverage-output.schema.json"
+          }
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -1,0 +1,321 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "agent",
+    "stage",
+    "humanizer_skill",
+    "reviewed_claims",
+    "records",
+    "bottom_up",
+    "issues",
+    "review_notes"
+  ],
+  "properties": {
+    "agent": {
+      "enum": [
+        "language_coherence_reviewer",
+        "final_integrity_auditor"
+      ]
+    },
+    "stage": {
+      "enum": [
+        "PARAGRAPH",
+        "SENTENCE",
+        "BOTTOM_UP"
+      ]
+    },
+    "humanizer_skill": {
+      "enum": [
+        "humanizer",
+        "NOT_APPLICABLE"
+      ]
+    },
+    "reviewed_claims": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "purpose",
+          "rhetorical_role",
+          "inputs",
+          "outputs",
+          "claim_ids",
+          "terminology_ids",
+          "notation_ids",
+          "argument_node_ids",
+          "premises",
+          "inference",
+          "conclusion",
+          "discourse_relation",
+          "transition_in",
+          "transition_out",
+          "parent_alignment",
+          "risk_signals",
+          "status",
+          "issue_ids",
+          "humanizer_patterns",
+          "recommended_action",
+          "main_claim",
+          "topic",
+          "sentence_type"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rhetorical_role": {
+            "enum": [
+              "PROBLEM",
+              "BACKGROUND",
+              "GAP",
+              "DEFINITION",
+              "ASSUMPTION",
+              "METHOD",
+              "DERIVATION",
+              "CLAIM",
+              "EVIDENCE",
+              "RESULT",
+              "INTERPRETATION",
+              "COMPARISON",
+              "LIMITATION",
+              "TRANSITION",
+              "SUMMARY"
+            ]
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "outputs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "claim_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "terminology_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "notation_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "argument_node_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "premises": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "inference": {
+            "type": "string"
+          },
+          "conclusion": {
+            "type": "string"
+          },
+          "discourse_relation": {
+            "type": "string"
+          },
+          "transition_in": {
+            "type": "string",
+            "minLength": 1
+          },
+          "transition_out": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parent_alignment": {
+            "type": "string",
+            "minLength": 1
+          },
+          "risk_signals": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "MISSING_PREMISE",
+                "SCOPE_JUMP",
+                "UNSUPPORTED_CAUSALITY",
+                "AMBIGUOUS_REFERENCE",
+                "FORMULA_CONCLUSION",
+                "STRONG_CLAIM",
+                "TRANSITION_GAP"
+              ]
+            }
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "GAP",
+              "NEEDS_AUTHOR"
+            ]
+          },
+          "issue_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "humanizer_patterns": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "recommended_action": {
+            "type": "string"
+          },
+          "main_claim": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sentence_type": {
+            "enum": [
+              "CLAIM",
+              "PREMISE",
+              "EVIDENCE",
+              "DEFINITION",
+              "ASSUMPTION",
+              "INFERENCE",
+              "RESULT",
+              "INTERPRETATION",
+              "TRANSITION",
+              "DESCRIPTION",
+              "OTHER",
+              "NOT_APPLICABLE"
+            ]
+          }
+        }
+      }
+    },
+    "bottom_up": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "child_ids",
+          "established_output",
+          "supports_parent",
+          "evidence",
+          "status",
+          "issue_ids"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "child_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "established_output": {
+            "type": "string",
+            "minLength": 1
+          },
+          "supports_parent": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "GAP",
+              "NEEDS_AUTHOR"
+            ]
+          },
+          "issue_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "$ref": "review-output.schema.json#/$defs/issue"
+      }
+    },
+    "review_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

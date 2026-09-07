@@ -9,6 +9,8 @@ Treat `.review/claims.json` and `.review/issues.json` as the shared state, not r
 
 For layered review or optimization, solidify the six invariant ledgers before `.review/global_contract.json`, `.review/structure.json`, and `.review/granular_review.json`. Treat all of them as binding parent state. Local edits may not drift from their theme, terminology, notation, data, argument graph, hierarchy, or Claim-scope constraints. Language and paragraph-logic work must use `$humanizer`.
 
+Use `.review/coherence_registry.json` for the authoritative source ID tree, paragraph contracts, risk plan, local recovery/coverage challenge, relation verification and bottom-up reconstruction. Local semantic graphs are recovered from complete local contexts; the scheduler supplements sparse cross-scale/remote edges. `logic_ontology_v1.json` defines the allowed relations by scale. Keep ordinary readability concerns as diagnostics; only structural faults and critical support/scope/coverage defects block logic acceptance. Never treat a risk score or attention weight as scientific evidence.
+
 For a user-facing new task, use `$paper-review-operator` to normalize natural language, create a canonical Request, confirm edit scope when required, and pass deterministic admission. This skill governs the scientific workflow after admission. A child agent executing a supplied assignment must follow its role contract and must not create a second Request.
 
 ## Route the request

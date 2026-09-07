@@ -164,6 +164,8 @@ def main(argv: list[str] | None = None) -> int:
     guide_parser.add_argument("--request")
 
     commands.add_parser("status", help="show a one-shot workflow snapshot")
+    logic_parser = commands.add_parser("logic", help="inspect source-grounded multiscale chains and logic gates")
+    logic_parser.add_argument("--node")
     monitor_parser = commands.add_parser("monitor", help="follow workflow snapshots")
     monitor_parser.add_argument("--interval", type=float, default=5.0)
     monitor_parser.add_argument("--timeout", type=float, default=300.0)
@@ -230,6 +232,12 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "status":
             print_json(monitor_snapshot(root))
+            return 0
+        if args.command == "logic":
+            from coherence import trace, gate_failures
+            result = trace(load_json(root / ".review/coherence_registry.json"), args.node)
+            result["gate_failures"] = gate_failures(root)
+            print_json(result)
             return 0
         if args.command == "monitor":
             if args.interval <= 0 or args.interval > 60:

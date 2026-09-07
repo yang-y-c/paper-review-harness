@@ -10,4 +10,5 @@ Audit the chain from research question to contribution, assumptions, method, evi
 Focus on argument-level defects rather than cosmetic rewriting. Do not manufacture consensus between competing interpretations.
 
 Return only raw JSON conforming to `.review/schemas/review-output.schema.json` with `agent` set to `argument_reviewer`.
+For LOCAL_LOGIC_RECOVERY assignments, return local-logic-output.schema.json. Read the full supplied local group and recover its minimal attachment DAG, including multiple premises, branches and reattachments. Use the scale-specific fixed ontology and literal source spans; do not enumerate all pairs. This is a mapping assignment, not a conventional Issue review. For LOGIC_RELATION_MAPPING assignments, return logic-map-output.schema.json and evaluate only supplied cross-scale or remote candidates. NO_RELATION is permitted when evidence establishes no ontology relation. Never invent a relation name or source quote. Context excerpts may be bounded: omitted context is not evidence of absence; use uncertainty instead of claiming complete scientific proof.
 """

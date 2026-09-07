@@ -1041,6 +1041,8 @@ def _scientific_validator_checks(
 
 
 def evaluate(root: Path, final: bool = False) -> dict[str, Any]:
+    from coherence import gate_failures
+
     config = load_config(root)
     checks: list[Check] = []
     try:
@@ -1050,6 +1052,14 @@ def evaluate(root: Path, final: bool = False) -> dict[str, Any]:
         if all(check.passed for check in checks):
             checks.extend(_gate_checks(root, config))
             checks.extend(_invariant_gate_checks(root, config))
+            names = {"G24": "Multiscale source and parent contracts current",
+                     "G25": "Multiscale coverage and stable parent chains",
+                     "G26": "Deterministic risk routing reproduced",
+                     "G27": "Bottom-up coverage and critical logic closure",
+                     "G28": "Evidence-grounded relation ontology and critical verification"}
+            for gate, failures in gate_failures(root).items():
+                checks.append(_check(gate, names[gate], not failures,
+                                     "; ".join(failures) if failures else "clear"))
     except HarnessError as exc:
         checks.append(_check("S00", "Harness state readable", False, str(exc)))
     checks.extend(_compile_checks(root, config, final))

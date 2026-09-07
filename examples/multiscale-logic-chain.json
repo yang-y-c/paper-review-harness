@@ -1,0 +1,34 @@
+{
+  "artifact_type": "ILLUSTRATIVE_MULTISCALE_TRACE",
+  "is_manuscript_review": false,
+  "note": "示意 ID 与内容用于展示输出结构；真实运行使用源码哈希派生 ID、原文 offset、完整 Schema 与调用记录。",
+  "structural_chain": [
+    {"id": "PAPER", "level": "PAPER", "parent_id": null, "purpose": "在给定假设下建立并验证一个误差界", "inputs": ["现有方法缺少该条件下的误差保证"], "outputs": ["带适用条件和证据的误差界"]},
+    {"id": "S_METHOD", "level": "SECTION", "parent_id": "PAPER", "purpose": "建立误差界的推导", "inputs": ["前节的定义与假设"], "outputs": ["需要验证的误差界表达式"]},
+    {"id": "P_DERIVATION", "level": "PARAGRAPH", "parent_id": "S_METHOD", "rhetorical_role": "DERIVATION", "purpose": "从前提推导局部误差界", "main_claim": "误差界仅在给定条件下成立", "topic": "条件与误差上界", "inputs": ["有界扰动", "稳定性条件"], "outputs": ["有条件的局部误差界"]},
+    {"id": "X8", "level": "SENTENCE", "parent_id": "P_DERIVATION", "sentence_type": "INFERENCE", "premises": ["X1 给定扰动界", "X4 给定稳定性条件", "X7 给定中间估计"], "inference": "组合前提后推出上界", "conclusion": "因此，该局部上界在上述条件下成立", "discourse_relation": "INFERENCE"}
+  ],
+  "local_attachment": {
+    "context": "完整 P_DERIVATION，含 X1 至 X8",
+    "node_id": "X8",
+    "primary_parent_id": "X1",
+    "additional_parent_ids": ["X4", "X7"],
+    "meaning": "X2–X3 的插入解释不改变 X8 对 X1 的回接；X4/X7 是额外必要前提。"
+  },
+  "graph_edges": [
+    {"source_id": "P_DERIVATION", "target_id": "X8", "graph": "STRUCTURAL", "relation": "CONTAINS", "origin": "PARSER"},
+    {"source_id": "X1", "target_id": "X8", "graph": "RHETORICAL", "scale": "SENTENCE", "relation": "INFERENCE", "origin": "LOCAL_GRAPH_RECOVERY"},
+    {"source_id": "X8", "target_id": "P_DERIVATION", "graph": "REALIZATION", "scale": "CROSS", "relation": "SUPPORTS", "origin": "EVIDENCE_VERIFIED"},
+    {"source_id": "P_DERIVATION", "target_id": "S_METHOD", "graph": "REALIZATION", "scale": "CROSS", "relation": "REALIZES", "origin": "EVIDENCE_VERIFIED"}
+  ],
+  "review_route": {"node_id": "X8", "reasons": ["INFERENCE_CONNECTOR", "CORE_CLAIM"], "selected": true, "deep_review": true, "score_use": "审查预算分配，不是逻辑真理概率"},
+  "verification_contract": {
+    "mapper_output": "关系标签 + source_evidence/target_evidence 的原文 unit_id/start/end/text",
+    "independent_input": "原文、候选关系、ontology 定义；不含 Mapper rationale/confidence",
+    "coverage_challenge": "检查是否遗漏 X4/X7，是否错误地只挂接到相邻 X7",
+    "counterfactual": "移除 X4 的稳定性条件后，上界还能否推出？",
+    "bottom_up": "关键句实际结论 → 段落输出 → 章节输出 → 全文有条件贡献",
+    "result": "示例未执行，不提供 PASS"
+  },
+  "horizontal_constraints": {"terminology_ids": ["T_ERROR_BOUND"], "notation_ids": ["N_PERTURBATION"], "claim_ids": ["C_BOUND"]}
+}

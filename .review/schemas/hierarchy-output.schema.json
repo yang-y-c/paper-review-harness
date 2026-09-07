@@ -16,6 +16,7 @@
         "required": ["id", "parent_id", "level", "heading", "location", "purpose", "input_from_previous", "output_to_next", "theme_anchors", "claim_ids", "transition_in", "transition_out", "status"],
         "properties": {
           "id": {"type": "string", "pattern": "^N[0-9]{3,}$"},
+          "source_unit_id": {"type": "string", "minLength": 1},
           "parent_id": {"type": ["string", "null"], "pattern": "^N[0-9]{3,}$"},
           "level": {"enum": ["SECTION", "SUBSECTION"]},
           "heading": {"type": "string", "minLength": 1},

@@ -15,6 +15,10 @@
   "global_review_change_threshold": 0.2,
   "require_humanizer": true,
   "language_review_skill": "humanizer",
+  "coherence_policy": {
+    "section_threshold": 40,
+    "sentence_threshold": 40
+  },
   "scientific_validators": [],
   "logging": {
     "enabled": true,

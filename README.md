@@ -7,7 +7,7 @@
   <a href="https://openai.com/codex/"><img alt="Codex Native" src="https://img.shields.io/badge/Codex-Native-111827?style=for-the-badge"></a>
   <a href="https://www.python.org/"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&amp;logo=python&amp;logoColor=white"></a>
   <a href="https://json-schema.org/"><img alt="JSON Schema" src="https://img.shields.io/badge/Output-JSON%20Schema-7C3AED?style=for-the-badge"></a>
-  <a href="pyproject.toml"><img alt="Version 0.3.0" src="https://img.shields.io/badge/version-0.3.0-059669?style=for-the-badge"></a>
+  <a href="pyproject.toml"><img alt="Version 0.4.0" src="https://img.shields.io/badge/version-0.4.0-059669?style=for-the-badge"></a>
 </p>
 <p><strong>自然语言输入 · 分层审查 · 独立验证 · 硬性门槛 · 完整溯源</strong></p>
 <p>
@@ -45,13 +45,13 @@
 ```mermaid
 flowchart LR
     U["自然语言请求"] --> R["结构化 Request"]
-    R --> A{"Admission<br/>17 项准入检查"}
+    R --> A{"Admission<br/>18 项准入检查"}
     A -->|通过| C["Claim Mapping"]
     A -->|拒绝| B["返回具体阻塞项"]
     C --> I["Registries +<br/>Argument Graph"]
     I --> M["Global Contract"]
     M --> H["Section / Subsection<br/>Hierarchy"]
-    H --> G["Selected Granularity"]
+    H --> G["Local Graph Recovery<br/>Coverage Challenge + Adaptive Review"]
     G --> V["Independent Review"]
     V --> X["Revision"]
     X --> Y["Independent Verification"]
@@ -222,9 +222,50 @@ remap changed facts → final_audit.json
 | `SUBSECTION` | 宏观层 + 所有章节和小节 | 常规深度审查 |
 | `PARAGRAPH` | 所有上层结构 + 每个段落 | 详细修改前检查 |
 | `SENTENCE` | 所有句子 | 终稿、返修稿或重点短文 |
-| `ADAPTIVE` | 全文逐段，高风险位置逐句 | 推荐的质量与成本平衡方案 |
+| `ADAPTIVE` | 全文逐段，高风险段落整体恢复句子图，关键句深审 | 默认方案 |
 
-粒度必须由用户明确选择；未选择时，准入门 `A14` 会拒绝执行。
+不必选择单一逻辑尺度。未指定覆盖范围时，Skill 会说明并采用 `ADAPTIVE`：全文、章节和段落累积检查；显式限制范围或要求全文逐句时才覆盖默认配置。`A14` 检查默认方案或显式覆盖配置是否有效。
+
+### 多尺度逻辑图：局部整体恢复，远距离补检
+
+```mermaid
+flowchart TD
+    P["源文件 → 确定性结构树"] --> G["全文目标 + 章节契约"]
+    G --> L["LLM 恢复章节/段落局部稀疏图"]
+    L --> C["独立覆盖挑战<br/>漏挂接 / 错挂接 / 多前提"]
+    C --> R["跨尺度对齐 + 显式引用/CORE Claim 远距离补边"]
+    R --> V["原文证据 + 固定 ontology + 独立复核"]
+    V --> A["风险段落：整段恢复句子 DAG"]
+    A --> B["自下而上重建实际输出"]
+    B --> Q["G24–G28 + 既有数据/主张 Gate"]
+```
+
+| 图 | 回答的问题 | 数据来源 |
+|---|---|---|
+| Structural Tree | 单元属于哪里？ | Parser 的 `CONTAINS` |
+| Rhetorical Flow | 同层内容如何推进、回接或分支？ | 整个局部上下文的结构恢复 |
+| Realization / Support | 子层实现哪个目标、支撑哪个 Claim？ | 固定关系类型 + 原文证据 + 独立复核 |
+
+每个局部节点保留 `primary_parent_id` 和 `additional_parent_ids`，可表达插入解释、回接和多前提推理。章节组整体恢复章节图，章节内恢复段落图，高风险段落整体恢复句子图；不会穷举全文句子或段落两两组合。术语/符号 Registry 横向约束各层。
+
+权威入口是 `.review/coherence_registry.json`，各图的查看文件位于 `.review/logic/`。查看完整多尺度链条：
+
+```powershell
+python scripts/control.py logic
+python scripts/control.py logic --node NODE-ID
+```
+
+输出包含 `PAPER → SECTION → PARAGRAPH → SENTENCE`、局部挂接、风险选择原因、原文证据、关系复核与反向审查。详见 [模块设计](docs/multiscale-logic.md) 与 [结构化示例](examples/multiscale-logic-chain.json)。
+
+| Gate | 程序检查 |
+|---|---|
+| `G24` | 论文源文件、上层契约与逻辑账本版本一致 |
+| `G25` | 各层覆盖完整，ID 唯一，父子链有效 |
+| `G26` | 风险路由可重算；加密依据未被改写 |
+| `G27` | 反向审查覆盖完整，无关键逻辑阻塞 |
+| `G28` | 关系符合尺度词表，证据匹配原文，局部图/复核完整，关键争议已处理 |
+
+普通过渡生硬、回退、重复和长距离认知负担只记诊断；关键支撑、前提或 CORE Scope 争议会阻止验收。风险分数用于安排审查预算，不表示逻辑正确率。源码抽取暂支持标准 TeX 结构与字面量 `input/include`；动态结构、递归输入等不能可靠展开时由 `A18` 阻止覆盖率认证。
 
 ### Humanizer 边界
 

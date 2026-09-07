@@ -210,13 +210,15 @@ def evaluate_admission(root: Path, request: dict[str, Any]) -> dict[str, Any]:
     _check(checks, "A13", compilation_ready, "Required final compilation has a configured build command")
     granularity = request.get("granularity", {})
     granularity_ok = intent not in LAYERED_INTENTS or (
-        granularity.get("level") is not None and granularity.get("explicit") is True
+        granularity.get("level") is not None and (
+            granularity.get("explicit") is True or granularity.get("level") == "ADAPTIVE"
+        )
     )
     _check(
         checks,
         "A14",
         granularity_ok,
-        "Layered review granularity was explicitly selected by the user",
+        "Layered review uses the disclosed ADAPTIVE baseline or an explicit depth override",
     )
     codex_root = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
     humanizer_path = codex_root / "skills" / "humanizer" / "SKILL.md"
@@ -287,6 +289,26 @@ def evaluate_admission(root: Path, request: dict[str, Any]) -> dict[str, Any]:
         scientific_config_ok,
         "Scientific-validator configuration is structurally executable",
     )
+    coherence_error = None
+    if intent in LAYERED_INTENTS:
+        try:
+            from coherence import build_inventory, policy_from
+            from logic_graph import ontology
+            policy_from(config)
+            ontology(root)
+            for schema in ("coherence-output.schema.json", "coherence-registry.schema.json",
+                           "logic-graph.schema.json", "local-logic-output.schema.json",
+                           "logic-coverage-output.schema.json", "logic-map-output.schema.json",
+                           "logic-verify-output.schema.json"):
+                if not (root / ".review/schemas" / schema).is_file():
+                    raise HarnessError(f"Missing multiscale schema:{schema}")
+            errors = build_inventory(root)["errors"]
+            if errors:
+                raise HarnessError("; ".join(errors))
+        except (HarnessError, OSError, ValueError, KeyError) as exc:
+            coherence_error = str(exc)
+    _check(checks, "A18", coherence_error is None,
+           coherence_error or "Multiscale ontology, policy, schemas and source inventory are ready")
     report = {
         "schema_version": 1,
         "admission_id": f"ADM-{uuid.uuid4().hex[:12]}",
