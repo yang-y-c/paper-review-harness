@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "phase": "INGEST",
+  "round": 0,
+  "active": false,
+  "active_request_id": null,
+  "last_request_id": null,
+  "active_run_id": null,
+  "stop_gate_enabled": false,
+  "stop_gate_attempts": 0,
+  "last_run_id": null,
+  "last_validation_passed": false,
+  "blocked_reason": null
+}

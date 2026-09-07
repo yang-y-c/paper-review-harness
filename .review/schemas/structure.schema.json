@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "run_id", "updated_at", "payload"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "status": {"enum": ["NOT_RUN", "CURRENT", "NOT_APPLICABLE"]},
+    "run_id": {"type": ["string", "null"]},
+    "updated_at": {"type": ["string", "null"], "format": "date-time"},
+    "payload": {"oneOf": [{"type": "null"}, {"$ref": "hierarchy-output.schema.json"}]}
+  }
+}

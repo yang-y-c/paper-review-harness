@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/paper-review/claims.schema.json",
+  "title": "Claim Ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "coverage", "claims"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "claims": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/claim"}
+    }
+  },
+  "$defs": {
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "abstract_mapped",
+        "conclusion_mapped",
+        "abstract_numerical_claims_mapped",
+        "scanned_sections",
+        "unmapped_sections"
+      ],
+      "properties": {
+        "abstract_mapped": {"type": "boolean"},
+        "conclusion_mapped": {"type": "boolean"},
+        "abstract_numerical_claims_mapped": {"type": "boolean"},
+        "scanned_sections": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "unmapped_sections": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "statement",
+        "locations",
+        "type",
+        "centrality",
+        "strength",
+        "scope",
+        "dependencies",
+        "evidence",
+        "strong_terms",
+        "status",
+        "adversarial_status",
+        "reviewed_by"
+      ],
+      "properties": {
+        "id": {"type": "string", "pattern": "^C[0-9]{2,}$"},
+        "statement": {"type": "string", "minLength": 1},
+        "locations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "type": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["theoretical", "algorithmic", "numerical", "interpretive", "presentation"]}
+        },
+        "centrality": {"enum": ["CORE", "SUPPORTING", "LOCAL"]},
+        "strength": {"enum": ["NORMAL", "STRONG", "EXTREME"]},
+        "scope": {"type": "string"},
+        "dependencies": {"type": "array", "items": {"type": "string", "pattern": "^C[0-9]{2,}$"}, "uniqueItems": true},
+        "evidence": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "strong_terms": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "status": {"enum": ["MAPPED", "UNDER_REVIEW", "CHALLENGED", "SUPPORTED", "NARROWED", "REMOVED"]},
+        "adversarial_status": {"enum": ["NOT_REQUIRED", "PENDING", "REVIEWED"]},
+        "reviewed_by": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

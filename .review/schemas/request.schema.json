@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Canonical paper review request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "created_at", "updated_at", "source", "intent", "scope", "objectives", "constraints", "granularity", "assumptions", "missing_information", "confirmation", "status", "normalization_notes"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "request_id": {"type": "string", "pattern": "^REQ-[0-9]{8}-[a-f0-9]{8}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "turn_id", "natural_language_sha256", "natural_language_excerpt"],
+      "properties": {
+        "session_id": {"type": ["string", "null"]},
+        "turn_id": {"type": ["string", "null"]},
+        "natural_language_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "natural_language_excerpt": {"type": "string", "maxLength": 1000}
+      }
+    },
+    "intent": {"enum": ["DISCUSS", "REVIEW", "REVISE", "VERIFY", "OPTIMIZE", "FULL"]},
+    "scope": {"$ref": "request-draft.schema.json#/$defs/scope"},
+    "objectives": {"$ref": "request-draft.schema.json#/$defs/objectives"},
+    "constraints": {"$ref": "request-draft.schema.json#/$defs/constraints"},
+    "granularity": {"$ref": "request-draft.schema.json#/$defs/granularity"},
+    "assumptions": {"$ref": "request-draft.schema.json#/$defs/assumptions"},
+    "missing_information": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "confirmed", "confirmed_at", "confirmed_by"],
+      "properties": {
+        "required": {"type": "boolean"},
+        "confirmed": {"type": "boolean"},
+        "confirmed_at": {"type": ["string", "null"], "format": "date-time"},
+        "confirmed_by": {"type": ["string", "null"]}
+      }
+    },
+    "status": {"enum": ["DRAFT", "READY", "CONFIRMED", "EXECUTING", "COMPLETED", "BLOCKED", "CANCELLED"]},
+    "normalization_notes": {"type": "array", "items": {"type": "string"}}
+  }
+}

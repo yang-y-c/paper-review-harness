@@ -1,0 +1,153 @@
+{
+  "description": "Paper Review Harness lifecycle gates and append-only audit capture.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .codex/hooks/audit_event.py",
+            "commandWindows": "python .codex/hooks/audit_event.py",
+            "timeout": 3,
+            "statusMessage": "Opening conversation provenance"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .codex/hooks/audit_event.py",
+            "commandWindows": "python .codex/hooks/audit_event.py",
+            "timeout": 3,
+            "statusMessage": "Recording request provenance"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .codex/hooks/audit_event.py",
+            "commandWindows": "python .codex/hooks/audit_event.py",
+            "timeout": 3,
+            "statusMessage": "Recording agent start"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .codex/hooks/audit_event.py",
+            "commandWindows": "python .codex/hooks/audit_event.py",
+            "timeout": 3,
+            "statusMessage": "Recording tool request"
+          }
+        ]
+      },
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/write_policy.py\"",
+            "commandWindows": "powershell -NoProfile -Command \"$paperRepoRoot = git rev-parse --show-toplevel; python (Join-Path $paperRepoRoot '.codex/hooks/write_policy.py')\"",
+            "timeout": 10,
+            "statusMessage": "Checking manuscript write phase"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .codex/hooks/audit_event.py",
+            "commandWindows": "python .codex/hooks/audit_event.py",
+            "timeout": 3,
+            "statusMessage": "Recording tool result"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .codex/hooks/audit_event.py",
+            "commandWindows": "python .codex/hooks/audit_event.py",
+            "timeout": 3,
+            "statusMessage": "Recording agent completion"
+          }
+        ]
+      },
+      {
+        "matcher": "claim[-_]mapper|macro[-_]architect|hierarchy[-_]reviewer|language[-_]coherence[-_]reviewer|final[-_]integrity[-_]auditor|theory[-_]reviewer|algorithm[-_]reviewer|numerical[-_]reviewer|argument[-_]reviewer|challenger|reviser|verifier",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/subagent_gate.py\"",
+            "commandWindows": "powershell -NoProfile -Command \"$paperRepoRoot = git rev-parse --show-toplevel; python (Join-Path $paperRepoRoot '.codex/hooks/subagent_gate.py')\"",
+            "timeout": 20,
+            "statusMessage": "Validating structured review output"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .codex/hooks/audit_event.py",
+            "commandWindows": "python .codex/hooks/audit_event.py",
+            "timeout": 3,
+            "statusMessage": "Materializing conversation provenance"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/stop_gate.py\"",
+            "commandWindows": "powershell -NoProfile -Command \"$paperRepoRoot = git rev-parse --show-toplevel; python (Join-Path $paperRepoRoot '.codex/hooks/stop_gate.py')\"",
+            "timeout": 240,
+            "statusMessage": "Running manuscript acceptance gates"
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .codex/hooks/audit_event.py",
+            "commandWindows": "python .codex/hooks/audit_event.py",
+            "timeout": 3,
+            "statusMessage": "Recording interruption"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .codex/hooks/audit_event.py",
+            "commandWindows": "python .codex/hooks/audit_event.py",
+            "timeout": 3,
+            "statusMessage": "Finalizing conversation provenance"
+          }
+        ]
+      }
+    ]
+  }
+}

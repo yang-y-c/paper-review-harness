@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "coverage": {
+    "abstract_mapped": false,
+    "conclusion_mapped": false,
+    "abstract_numerical_claims_mapped": false,
+    "scanned_sections": [],
+    "unmapped_sections": []
+  },
+  "claims": []
+}

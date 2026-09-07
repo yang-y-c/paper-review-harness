@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/paper-review/verifications.schema.json",
+  "title": "Verification Ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "verifications"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "verifications": {"type": "array", "items": {"$ref": "#/$defs/verification"}}
+  },
+  "$defs": {
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "issue_id", "result", "rationale", "evidence_locations", "created_at", "run_id"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^V[0-9]{3,}$"},
+        "issue_id": {"type": "string", "pattern": "^[A-Z]{2}-[0-9]{3,}$"},
+        "result": {"enum": ["PASS", "PARTIAL", "FAIL", "NEW_PROBLEM"]},
+        "rationale": {"type": "string", "minLength": 1},
+        "evidence_locations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "created_at": {"type": "string", "format": "date-time"},
+        "run_id": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

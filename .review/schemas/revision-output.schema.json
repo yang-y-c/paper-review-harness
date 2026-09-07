@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agent", "revisions"],
+  "properties": {
+    "agent": {"const": "reviser"},
+    "revisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issue_id", "revision_status", "changed_files", "changed_locations", "affected_claims", "change_types", "resolution_summary"],
+        "properties": {
+          "issue_id": {"type": "string", "pattern": "^[A-Z]{2}-[0-9]{3,}$"},
+          "revision_status": {"enum": ["CLAIMED_FIXED", "NEEDS_AUTHOR"]},
+          "changed_files": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "changed_locations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "affected_claims": {"type": "array", "items": {"type": "string", "pattern": "^C[0-9]{2,}$"}, "uniqueItems": true},
+          "change_types": {"type": "array", "minItems": 1, "items": {"enum": ["proof", "scope", "assumption", "definition", "algorithm", "numerical", "evidence", "structure", "prose", "citation", "production"]}},
+          "resolution_summary": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

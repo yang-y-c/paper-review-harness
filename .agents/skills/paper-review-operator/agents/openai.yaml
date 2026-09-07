@@ -1,0 +1,7 @@
+interface:
+  display_name: "Paper Review Operator"
+  short_description: "Natural-language admission, control, monitoring, and trace"
+  brand_color: "#365F78"
+  default_prompt: "Use $paper-review-operator to turn my paper request into a controlled, traceable workflow."
+policy:
+  allow_implicit_invocation: true

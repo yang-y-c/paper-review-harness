@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agent", "reviewed_claims", "granularity", "humanizer_skill", "units", "issues", "review_notes"],
+  "properties": {
+    "agent": {"const": "language_coherence_reviewer"},
+    "reviewed_claims": {"type": "array", "items": {"type": "string", "pattern": "^C[0-9]{2,}$"}, "uniqueItems": true},
+    "granularity": {"enum": ["MACRO_ONLY", "SECTION", "SUBSECTION", "PARAGRAPH", "SENTENCE", "ADAPTIVE"]},
+    "humanizer_skill": {"const": "humanizer"},
+    "units": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "parent_node_id", "parent_contract_path", "level", "location", "purpose_alignment", "transition_in", "transition_out", "terminology_alignment", "notation_alignment", "humanizer_patterns", "recommended_action", "status"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^U[0-9]{4,}$"},
+          "parent_node_id": {"type": ["string", "null"], "pattern": "^N[0-9]{3,}$"},
+          "parent_contract_path": {"type": ["string", "null"], "enum": ["contract.title", "contract.abstract", "contract.conclusion", null]},
+          "level": {"enum": ["PARAGRAPH", "SENTENCE", "HEADING"]},
+          "location": {"type": "string", "minLength": 1},
+          "purpose_alignment": {"type": "string"},
+          "transition_in": {"type": "string"},
+          "transition_out": {"type": "string"},
+          "terminology_alignment": {"type": "string"},
+          "notation_alignment": {"type": "string"},
+          "humanizer_patterns": {"type": "array", "items": {"type": "string"}},
+          "recommended_action": {"type": "string"},
+          "status": {"enum": ["PASS", "REVISE", "NEEDS_AUTHOR"]}
+        }
+      }
+    },
+    "issues": {"type": "array", "items": {"$ref": "review-output.schema.json#/$defs/issue"}},
+    "review_notes": {"type": "array", "items": {"type": "string"}}
+  }
+}

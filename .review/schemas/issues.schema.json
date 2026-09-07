@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/paper-review/issues.schema.json",
+  "title": "Issue Ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "issues"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}}
+  },
+  "$defs": {
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "claim_id", "location", "severity", "category", "problem",
+        "why_it_matters", "required_action", "verification_criterion",
+        "source_agents", "status", "verification_status", "created_at", "updated_at"
+      ],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[A-Z]{2}-[0-9]{3,}$"},
+        "claim_id": {"type": ["string", "null"], "pattern": "^C[0-9]{2,}$"},
+        "location": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["BLOCKER", "MAJOR", "MINOR", "STYLE"]},
+        "category": {"enum": ["theory", "algorithm", "numerical", "argument", "evidence", "consistency", "presentation", "production"]},
+        "problem": {"type": "string", "minLength": 1},
+        "why_it_matters": {"type": "string", "minLength": 1},
+        "required_action": {"type": "string", "minLength": 1},
+        "verification_criterion": {"type": "string", "minLength": 1},
+        "source_agents": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "status": {"enum": ["OPEN", "NEEDS_AUTHOR", "CLAIMED_FIXED", "RESOLVED", "WONT_FIX"]},
+        "verification_status": {"enum": ["NOT_RUN", "PASS", "PARTIAL", "FAIL", "NEW_PROBLEM"]},
+        "created_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

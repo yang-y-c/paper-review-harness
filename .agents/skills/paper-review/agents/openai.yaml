@@ -1,0 +1,4 @@
+interface:
+  display_name: "Paper Review Harness"
+  short_description: "Claim-centered manuscript review, revision, and verification"
+  default_prompt: "Use $paper-review to discuss, review, revise, or verify this manuscript through the claim and issue ledgers."

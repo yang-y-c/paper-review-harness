@@ -1,0 +1,9 @@
+[project]
+name = "paper-review-harness"
+version = "0.2.0"
+description = "Hierarchical Codex workflow for manuscript control, review, revision, and verification"
+requires-python = ">=3.11"
+dependencies = ["jsonschema>=4.21"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "main_tex": "manuscript/main.tex",
+  "manuscript_roots": ["manuscript"],
+  "figure_roots": ["figures"],
+  "bibliography_files": ["manuscript/references.bib", "references.bib"],
+  "build_command": [],
+  "compile_timeout_seconds": 180,
+  "codex_command": "codex",
+  "codex_timeout_seconds": 1800,
+  "max_rounds": 12,
+  "max_parallel_reviewers": 4,
+  "max_stop_continuations": 2,
+  "global_review_change_threshold": 0.2,
+  "require_humanizer": true,
+  "language_review_skill": "humanizer",
+  "logging": {
+    "enabled": true,
+    "redact_secrets": true,
+    "max_inline_chars": 4000,
+    "hash_chain": true,
+    "materialize_conversation_on_stop": true,
+    "retain_raw_events": true
+  },
+  "admission": {
+    "require_structured_request": true,
+    "require_confirmation_for_edits": true,
+    "require_no_fabrication_policy": true,
+    "block_conflicting_active_request": true
+  },
+  "required_reviewers": [
+    "theory_reviewer",
+    "algorithm_reviewer",
+    "numerical_reviewer",
+    "argument_reviewer"
+  ],
+  "gates": {
+    "require_compilation": true,
+    "require_core_evidence": true,
+    "require_strong_claim_challenge": true,
+    "require_abstract_mapping": true,
+    "require_conclusion_mapping": true,
+    "require_routed_review_coverage": true,
+    "block_open_blocker": true,
+    "block_core_major": true,
+    "require_independent_verification": true,
+    "require_global_contract": true,
+    "require_hierarchy_review": true,
+    "require_granular_review": true,
+    "require_final_integrity_audit": true
+  }
+}

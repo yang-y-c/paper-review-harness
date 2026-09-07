@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Paper review admission result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "admission_id", "request_id", "evaluated_at", "allowed", "checks"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "admission_id": {"type": "string", "pattern": "^ADM-[a-f0-9]{12}$"},
+    "request_id": {"type": "string"},
+    "evaluated_at": {"type": "string", "format": "date-time"},
+    "allowed": {"type": "boolean"},
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "detail"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^A[0-9]{2}$"},
+          "status": {"enum": ["PASS", "FAIL"]},
+          "detail": {"type": "string"}
+        }
+      }
+    }
+  }
+}

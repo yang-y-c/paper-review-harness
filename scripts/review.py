@@ -1,0 +1,797 @@
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+from paper_review_lib import (
+    CodexRunner,
+    HarnessError,
+    find_root,
+    load_config,
+    load_json,
+    make_run_id,
+    mark_hierarchy_not_applicable,
+    merge_claim_map,
+    merge_layer_output,
+    merge_review_output,
+    record_revisions,
+    record_verifications,
+    reset_layer_ledgers,
+    reverse_dependencies,
+    route_all_claims,
+    route_claim,
+    status_summary,
+    utc_now,
+    update_state,
+    write_json,
+)
+from validators import evaluate, render_text
+from admission import load_request, require_admission, save_request
+from provenance import append_event
+
+
+RUN_PLANS = {
+    "discuss": ["CLAIM_MAPPING", "ADVERSARIAL_REVIEW", "discussion packet"],
+    "review": [
+        "CLAIM_MAPPING",
+        "MACRO_CONTRACT",
+        "HIERARCHICAL_REVIEW",
+        "GRANULAR_LANGUAGE_REVIEW",
+        "INDEPENDENT_REVIEW",
+        "ISSUE_SYNTHESIS",
+        "ADVERSARIAL_REVIEW",
+        "FINAL_INTEGRITY_AUDIT",
+    ],
+    "revise": ["REVISION"],
+    "verify": ["TARGETED_VERIFICATION"],
+    "optimize": [
+        "MACRO_CONTRACT",
+        "HIERARCHICAL_REVIEW",
+        "GRANULAR_LANGUAGE_REVIEW",
+        "REVISION",
+        "TARGETED_VERIFICATION",
+        "FINAL_INTEGRITY_AUDIT",
+    ],
+    "full": [
+        "CLAIM_MAPPING",
+        "MACRO_CONTRACT",
+        "HIERARCHICAL_REVIEW",
+        "GRANULAR_LANGUAGE_REVIEW",
+        "INDEPENDENT_REVIEW",
+        "ISSUE_SYNTHESIS",
+        "ADVERSARIAL_REVIEW",
+        "REVISION",
+        "TARGETED_VERIFICATION",
+        "FINAL_INTEGRITY_AUDIT",
+        "DETERMINISTIC_VALIDATION",
+    ],
+}
+
+
+class Workflow:
+    def __init__(self, root: Path):
+        self.root = root
+        self.config = load_config(root)
+        self.runner = CodexRunner(root, self.config)
+
+    @property
+    def claims_ledger(self) -> dict[str, Any]:
+        return load_json(self.root / ".review" / "claims.json")
+
+    @property
+    def issues_ledger(self) -> dict[str, Any]:
+        return load_json(self.root / ".review" / "issues.json")
+
+    def map_claims(self, force: bool = False) -> dict[str, Any]:
+        ledger = self.claims_ledger
+        if ledger["claims"] and not force:
+            return ledger
+        update_state(self.root, phase="CLAIM_MAPPING")
+        run_id = make_run_id("claim-map")
+        update_state(self.root, active_run_id=run_id)
+        assignment = {
+            "task": "Map all material manuscript Claims and coverage into the required output schema.",
+            "main_tex": self.config["main_tex"],
+            "manuscript_roots": self.config["manuscript_roots"],
+            "bibliography_files": self.config.get("bibliography_files", []),
+            "existing_claims": ledger["claims"],
+        }
+        output = self.runner.run("claim_mapper", assignment, run_id)
+        merged = merge_claim_map(self.root, output)
+        update_state(self.root, last_run_id=run_id, active_run_id=None)
+        return merged
+
+    def macro_control(self) -> dict[str, Any]:
+        claims = self.map_claims()["claims"]
+        update_state(self.root, phase="MACRO_CONTRACT")
+        run_id = make_run_id("macro-contract")
+        update_state(self.root, active_run_id=run_id)
+        output = self.runner.run(
+            "macro_architect",
+            {
+                "task": "Establish and audit the binding manuscript-wide contract before lower-layer review.",
+                "main_tex": self.config["main_tex"],
+                "manuscript_roots": self.config["manuscript_roots"],
+                "claims": claims,
+                "required_dimensions": [
+                    "title",
+                    "abstract",
+                    "section and subsection names",
+                    "conclusion",
+                    "core logic chain",
+                    "terminology",
+                    "notation",
+                ],
+            },
+            run_id,
+        )
+        ledger = merge_layer_output(self.root, "macro_architect", output, run_id)
+        update_state(self.root, last_run_id=run_id, active_run_id=None)
+        return ledger
+
+    def hierarchy_control(self, granularity: str) -> dict[str, Any]:
+        if granularity == "MACRO_ONLY":
+            return mark_hierarchy_not_applicable(
+                self.root, "The user explicitly selected macro-only review"
+            )
+        contract = load_json(self.root / ".review" / "global_contract.json")
+        if contract["status"] != "CURRENT":
+            raise HarnessError("Hierarchy review requires a CURRENT global contract")
+        claims = self.claims_ledger["claims"]
+        update_state(self.root, phase="HIERARCHICAL_REVIEW")
+        run_id = make_run_id("hierarchy-review")
+        update_state(self.root, active_run_id=run_id)
+        output = self.runner.run(
+            "hierarchy_reviewer",
+            {
+                "task": "Audit the section hierarchy top-down against the frozen global contract.",
+                "main_tex": self.config["main_tex"],
+                "granularity": granularity,
+                "global_contract": contract["payload"]["contract"],
+                "claims": claims,
+                "scope_rule": (
+                    "Create SECTION nodes only."
+                    if granularity == "SECTION"
+                    else "Create SECTION and SUBSECTION nodes."
+                ),
+            },
+            run_id,
+        )
+        ledger = merge_layer_output(self.root, "hierarchy_reviewer", output, run_id)
+        update_state(self.root, last_run_id=run_id, active_run_id=None)
+        return ledger
+
+    def granular_control(self, granularity: str) -> dict[str, Any]:
+        contract = load_json(self.root / ".review" / "global_contract.json")
+        structure = load_json(self.root / ".review" / "structure.json")
+        hierarchy_ready = structure["status"] == "CURRENT" or (
+            granularity == "MACRO_ONLY" and structure["status"] == "NOT_APPLICABLE"
+        )
+        if contract["status"] != "CURRENT" or not hierarchy_ready:
+            raise HarnessError("Language review requires valid global and hierarchy states")
+        update_state(self.root, phase="GRANULAR_LANGUAGE_REVIEW")
+        run_id = make_run_id("language-coherence")
+        update_state(self.root, active_run_id=run_id)
+        output = self.runner.run(
+            "language_coherence_reviewer",
+            {
+                "task": "Apply $humanizer and audit local language/coherence without editing.",
+                "main_tex": self.config["main_tex"],
+                "granularity": granularity,
+                "humanizer_skill": self.config.get("language_review_skill", "humanizer"),
+                "global_contract": contract["payload"]["contract"],
+                "hierarchy": (
+                    structure["payload"]["nodes"]
+                    if structure["status"] == "CURRENT"
+                    else []
+                ),
+                "adaptive_rule": (
+                    "Review every paragraph; inspect sentences only in title, abstract, conclusion, "
+                    "Core Claims, transitions, and flagged high-risk units."
+                    if granularity == "ADAPTIVE"
+                    else "Use exactly the selected granularity."
+                ),
+            },
+            run_id,
+        )
+        ledger = merge_layer_output(
+            self.root, "language_coherence_reviewer", output, run_id
+        )
+        update_state(self.root, last_run_id=run_id, active_run_id=None)
+        return ledger
+
+    def final_audit(self, granularity: str) -> dict[str, Any]:
+        update_state(self.root, phase="FINAL_INTEGRITY_AUDIT")
+        run_id = make_run_id("final-integrity-audit")
+        update_state(self.root, active_run_id=run_id)
+        output = self.runner.run(
+            "final_integrity_auditor",
+            {
+                "task": "Independently audit the current manuscript across all selected layers.",
+                "main_tex": self.config["main_tex"],
+                "granularity": granularity,
+                "global_contract": load_json(
+                    self.root / ".review" / "global_contract.json"
+                ),
+                "hierarchy": load_json(self.root / ".review" / "structure.json"),
+                "granular_review": load_json(
+                    self.root / ".review" / "granular_review.json"
+                ),
+                "claims": self.claims_ledger["claims"],
+                "constraints": [
+                    "Do not read revisions.json or reviser run outputs.",
+                    "Do not edit files.",
+                    "Lower-layer wording must remain aligned with every parent constraint.",
+                ],
+            },
+            run_id,
+        )
+        ledger = merge_layer_output(
+            self.root, "final_integrity_auditor", output, run_id
+        )
+        update_state(self.root, last_run_id=run_id, active_run_id=None)
+        return ledger
+
+    def _review_assignments(
+        self, selected_claims: list[dict[str, Any]], include_challenger: bool
+    ) -> dict[str, dict[str, Any]]:
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for claim in selected_claims:
+            for agent in route_claim(claim):
+                if agent == "challenger" and not include_challenger:
+                    continue
+                if agent != "challenger" and include_challenger:
+                    continue
+                grouped.setdefault(agent, []).append(claim)
+        return {
+            agent: {
+                "task": "Independently review only the assigned Claims and relevant manuscript context.",
+                "main_tex": self.config["main_tex"],
+                "claims": claims,
+                "constraints": [
+                    "Do not read .review/runs from other agents.",
+                    "Do not edit files.",
+                    "Every finding must include an exact verification criterion.",
+                ],
+            }
+            for agent, claims in grouped.items()
+        }
+
+    def review(
+        self,
+        selected_ids: list[str] | None = None,
+        granularity: str = "ADAPTIVE",
+        *,
+        run_final_audit: bool = True,
+    ) -> list[str]:
+        claims = self.map_claims()["claims"]
+        reset_layer_ledgers(self.root)
+        self.macro_control()
+        self.hierarchy_control(granularity)
+        self.granular_control(granularity)
+        if selected_ids:
+            selected = [claim for claim in claims if claim["id"] in set(selected_ids)]
+            missing = sorted(set(selected_ids) - {claim["id"] for claim in selected})
+            if missing:
+                raise HarnessError(f"Unknown Claim IDs: {', '.join(missing)}")
+        else:
+            selected = claims
+
+        completed_agents: list[str] = ["macro_architect"]
+        if granularity != "MACRO_ONLY":
+            completed_agents.append("hierarchy_reviewer")
+        completed_agents.append("language_coherence_reviewer")
+        update_state(self.root, phase="INDEPENDENT_REVIEW")
+        review_id = make_run_id("review")
+        update_state(self.root, active_run_id=review_id)
+        regular = self.runner.run_parallel(
+            self._review_assignments(selected, include_challenger=False), review_id
+        )
+        for agent in sorted(regular):
+            merge_review_output(self.root, regular[agent])
+            completed_agents.append(agent)
+        update_state(
+            self.root, phase="ISSUE_SYNTHESIS", last_run_id=review_id, active_run_id=None
+        )
+
+        adversarial = self._review_assignments(selected, include_challenger=True)
+        if adversarial:
+            update_state(self.root, phase="ADVERSARIAL_REVIEW")
+            challenge_id = make_run_id("challenge")
+            update_state(self.root, active_run_id=challenge_id)
+            results = self.runner.run_parallel(adversarial, challenge_id)
+            for agent in sorted(results):
+                merge_review_output(self.root, results[agent])
+                completed_agents.append(agent)
+            update_state(
+                self.root,
+                phase="ISSUE_SYNTHESIS",
+                last_run_id=challenge_id,
+                active_run_id=None,
+            )
+        if run_final_audit:
+            self.final_audit(granularity)
+            completed_agents.append("final_integrity_auditor")
+        return completed_agents
+
+    def discuss(self, selected_ids: list[str] | None = None) -> dict[str, Any]:
+        claims = self.map_claims()["claims"]
+        if selected_ids:
+            selected = [claim for claim in claims if claim["id"] in set(selected_ids)]
+            missing = sorted(set(selected_ids) - {claim["id"] for claim in selected})
+            if missing:
+                raise HarnessError(f"Unknown Claim IDs: {', '.join(missing)}")
+        else:
+            selected = [
+                claim
+                for claim in claims
+                if claim["centrality"] == "CORE" or claim["strength"] in {"STRONG", "EXTREME"}
+            ]
+        if not selected:
+            raise HarnessError("No Claims are available for discussion")
+        update_state(self.root, phase="ADVERSARIAL_REVIEW")
+        assignments: dict[str, dict[str, Any]] = {
+            "argument_reviewer": {
+                "task": "Prepare the evidence and argument side of a discussion packet. Do not edit.",
+                "main_tex": self.config["main_tex"],
+                "claims": selected,
+                "constraints": ["Do not read prior run outputs", "Return structured Issues only"],
+            },
+            "challenger": {
+                "task": "Prepare the strongest challenge side of a discussion packet. Do not repair or edit.",
+                "main_tex": self.config["main_tex"],
+                "claims": selected,
+                "constraints": ["Do not read prior run outputs", "Return structured Issues only"],
+            },
+        }
+        run_id = make_run_id("discuss")
+        update_state(self.root, active_run_id=run_id)
+        outputs = self.runner.run_parallel(assignments, run_id)
+        packets = []
+        argument_issues = outputs.get("argument_reviewer", {}).get("issues", [])
+        challenge_issues = outputs.get("challenger", {}).get("issues", [])
+        for current_claim in selected:
+            related_argument = [
+                item for item in argument_issues if item.get("claim_id") == current_claim["id"]
+            ]
+            related_challenges = [
+                item for item in challenge_issues if item.get("claim_id") == current_claim["id"]
+            ]
+            decision_points = [
+                {
+                    "problem": item["problem"],
+                    "required_action": item["required_action"],
+                    "verification_criterion": item["verification_criterion"],
+                }
+                for item in related_argument + related_challenges
+            ]
+            packets.append(
+                {
+                    "claim_id": current_claim["id"],
+                    "statement": current_claim["statement"],
+                    "scope": current_claim["scope"],
+                    "evidence": current_claim["evidence"],
+                    "argument_findings": related_argument,
+                    "challenges": related_challenges,
+                    "author_decision_required": any(
+                        item.get("status") == "NEEDS_AUTHOR"
+                        or item.get("severity") in {"BLOCKER", "MAJOR"}
+                        for item in related_argument + related_challenges
+                    ),
+                    "decision_points": decision_points,
+                }
+            )
+        packet = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "created_at": utc_now(),
+            "claims": packets,
+        }
+        packet_path = self.root / ".review" / "runs" / run_id / "artifacts" / "discussion-packet.json"
+        write_json(packet_path, packet)
+        for agent in sorted(outputs):
+            merge_review_output(self.root, outputs[agent])
+        update_state(
+            self.root, phase="ISSUE_SYNTHESIS", last_run_id=run_id, active_run_id=None
+        )
+        return {
+            "agents": sorted(outputs),
+            "packet": str(packet_path.relative_to(self.root)),
+            "claims": len(packets),
+        }
+
+    def revise(self, severities: set[str] | None = None) -> int:
+        issues = self.issues_ledger["issues"]
+        targets = [
+            issue
+            for issue in issues
+            if issue["status"] == "OPEN"
+            and (severities is None or issue["severity"] in severities)
+        ]
+        if not targets:
+            return 0
+        claims_by_id = {claim["id"]: claim for claim in self.claims_ledger["claims"]}
+        relevant_ids = {issue["claim_id"] for issue in targets if issue.get("claim_id")}
+        relevant = [claims_by_id[claim_id] for claim_id in sorted(relevant_ids) if claim_id in claims_by_id]
+        update_state(self.root, phase="REVISION")
+        run_id = make_run_id("revision")
+        update_state(self.root, active_run_id=run_id)
+        assignment = {
+            "task": "Address each assigned Issue with the smallest scientifically defensible manuscript change.",
+            "main_tex": self.config["main_tex"],
+            "manuscript_roots": self.config["manuscript_roots"],
+            "issues": targets,
+            "claims": relevant,
+            "global_contract": load_json(self.root / ".review" / "global_contract.json"),
+            "hierarchy": load_json(self.root / ".review" / "structure.json"),
+            "selected_granularity": load_json(
+                self.root / ".review" / "granular_review.json"
+            ),
+            "constraints": [
+                "Do not set any Issue to RESOLVED.",
+                "Use NEEDS_AUTHOR instead of inventing evidence or intent.",
+                "Preserve unrelated user changes.",
+            ],
+        }
+        output = self.runner.run("reviser", assignment, run_id)
+        record_revisions(self.root, output, run_id)
+        update_state(self.root, last_run_id=run_id, active_run_id=None)
+        return len(output["revisions"])
+
+    def verify(self) -> int:
+        targets = [
+            issue for issue in self.issues_ledger["issues"] if issue["status"] == "CLAIMED_FIXED"
+        ]
+        if not targets:
+            return 0
+        claims = self.claims_ledger["claims"]
+        claim_by_id = {claim["id"]: claim for claim in claims}
+        direct_ids = {issue["claim_id"] for issue in targets if issue.get("claim_id")}
+        affected_ids = reverse_dependencies(claims, direct_ids)
+        relevant_claims = [claim_by_id[claim_id] for claim_id in affected_ids if claim_id in claim_by_id]
+        update_state(self.root, phase="TARGETED_VERIFICATION")
+        run_id = make_run_id("verification")
+        update_state(self.root, active_run_id=run_id)
+        sanitized_issues = [
+            {
+                key: value
+                for key, value in issue.items()
+                if key
+                in {
+                    "id",
+                    "claim_id",
+                    "location",
+                    "severity",
+                    "category",
+                    "problem",
+                    "why_it_matters",
+                    "required_action",
+                    "verification_criterion",
+                }
+            }
+            for issue in targets
+        ]
+        assignment = {
+            "task": "Verify each original criterion against the current manuscript independently.",
+            "main_tex": self.config["main_tex"],
+            "issues": sanitized_issues,
+            "claims": relevant_claims,
+            "constraints": [
+                "Do not read revisions.json or reviser run outputs.",
+                "Do not infer what the reviser intended.",
+                "Do not edit files.",
+            ],
+        }
+        output = self.runner.run("verifier", assignment, run_id)
+        record_verifications(self.root, output, run_id)
+        update_state(self.root, last_run_id=run_id, active_run_id=None)
+        return len(output["verifications"])
+
+    def validate(self, final: bool) -> dict[str, Any]:
+        update_state(self.root, phase="DETERMINISTIC_VALIDATION")
+        report = evaluate(self.root, final=final)
+        if report["passed"] and final:
+            update_state(
+                self.root,
+                phase="ACCEPT",
+                active=False,
+                stop_gate_enabled=False,
+                stop_gate_attempts=0,
+                last_validation_passed=True,
+                blocked_reason=None,
+            )
+        else:
+            update_state(self.root, last_validation_passed=report["passed"])
+        return report
+
+    def optimize(self, granularity: str) -> dict[str, Any]:
+        blockers = [
+            issue
+            for issue in self.issues_ledger["issues"]
+            if issue["severity"] == "BLOCKER" and issue["status"] != "RESOLVED"
+        ]
+        if blockers:
+            raise HarnessError("Optimization is blocked until unresolved BLOCKER Issues are addressed")
+        claims = self.map_claims()["claims"]
+        reset_layer_ledgers(self.root)
+        self.macro_control()
+        self.hierarchy_control(granularity)
+        self.granular_control(granularity)
+        targets = [
+            claim
+            for claim in claims
+            if claim["centrality"] == "CORE" or "interpretive" in claim["type"]
+        ]
+        update_state(self.root, phase="INDEPENDENT_REVIEW")
+        run_id = make_run_id("optimize-review")
+        update_state(self.root, active_run_id=run_id)
+        output = self.runner.run(
+            "argument_reviewer",
+            {
+                "task": "Review argument architecture and communication for optimization; report semantic risks as higher severity.",
+                "main_tex": self.config["main_tex"],
+                "claims": targets,
+                "constraints": ["Do not edit", "Do not read prior run outputs"],
+            },
+            run_id,
+        )
+        merge_review_output(self.root, output)
+        update_state(self.root, last_run_id=run_id, active_run_id=None)
+        revised = self.revise()
+        verified = self.verify()
+        self.hierarchy_control(granularity)
+        self.granular_control(granularity)
+        audit = self.final_audit(granularity)
+        return {"revised": revised, "verified": verified, "final_audit": audit["status"]}
+
+    def full(self, max_rounds: int, granularity: str) -> dict[str, Any]:
+        update_state(
+            self.root,
+            active=True,
+            stop_gate_enabled=True,
+            stop_gate_attempts=0,
+            blocked_reason=None,
+        )
+        self.map_claims()
+        self.review(granularity=granularity)
+        last_report: dict[str, Any] | None = None
+        for round_id in range(1, max_rounds + 1):
+            update_state(self.root, round=round_id)
+            actionable = [
+                issue for issue in self.issues_ledger["issues"] if issue["status"] == "OPEN"
+            ]
+            if actionable:
+                self.revise()
+            self.verify()
+            self.hierarchy_control(granularity)
+            self.granular_control(granularity)
+            self.final_audit(granularity)
+            last_report = self.validate(final=True)
+            if last_report["passed"]:
+                return last_report
+            remaining_actionable = [
+                issue
+                for issue in self.issues_ledger["issues"]
+                if issue["status"] in {"OPEN", "CLAIMED_FIXED"}
+            ]
+            if not remaining_actionable:
+                reason = "Validation failed, but no machine-actionable Issue remains; author input or configuration is required."
+                update_state(
+                    self.root,
+                    phase="BLOCKED",
+                    active=False,
+                    stop_gate_enabled=False,
+                    blocked_reason=reason,
+                )
+                raise HarnessError(reason + "\n" + render_text(last_report))
+        reason = f"Review did not converge within {max_rounds} rounds; manuscript is not accepted."
+        update_state(
+            self.root,
+            phase="BLOCKED",
+            active=False,
+            stop_gate_enabled=False,
+            blocked_reason=reason,
+        )
+        raise HarnessError(reason + ("\n" + render_text(last_report) if last_report else ""))
+
+
+def _print_json(value: Any) -> None:
+    print(json.dumps(value, ensure_ascii=False, indent=2))
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Orchestrate the Codex Paper Review Harness")
+    parser.add_argument("--root", type=Path, help="paper repository root")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser("status")
+
+    route_parser = subparsers.add_parser("route")
+    route_parser.add_argument("--claim", action="append", default=[])
+
+    validate_parser = subparsers.add_parser("validate")
+    validate_parser.add_argument("--final", action="store_true")
+
+    activate_parser = subparsers.add_parser("activate")
+    activate_parser.add_argument("--stop-gate", action="store_true")
+    subparsers.add_parser("deactivate")
+
+    run_parser = subparsers.add_parser("run")
+    run_parser.add_argument("--mode", choices=sorted(RUN_PLANS), required=True)
+    run_parser.add_argument("--request", required=True, help="canonical request ID")
+    run_parser.add_argument("--claim", action="append", default=[])
+    run_parser.add_argument("--max-rounds", type=int)
+    run_parser.add_argument("--dry-run", action="store_true")
+
+    args = parser.parse_args(argv)
+    active_request: dict[str, Any] | None = None
+    try:
+        root = find_root(args.root)
+        if args.command == "status":
+            _print_json(status_summary(root))
+            return 0
+        if args.command == "route":
+            claims = load_json(root / ".review" / "claims.json")["claims"]
+            if args.claim:
+                claims = [claim for claim in claims if claim["id"] in set(args.claim)]
+            _print_json(route_all_claims(claims))
+            return 0
+        if args.command == "activate":
+            _print_json(
+                update_state(
+                    root,
+                    active=True,
+                    stop_gate_enabled=bool(args.stop_gate),
+                    stop_gate_attempts=0,
+                    blocked_reason=None,
+                )
+            )
+            return 0
+        if args.command == "deactivate":
+            _print_json(
+                update_state(root, active=False, stop_gate_enabled=False, stop_gate_attempts=0)
+            )
+            return 0
+        workflow = Workflow(root)
+        if args.command == "validate":
+            report = workflow.validate(final=args.final)
+            print(render_text(report))
+            return 0 if report["passed"] else 1
+        if args.command == "run":
+            active_request = load_request(root, args.request)
+            expected_intent = args.mode.upper()
+            if active_request["intent"] != expected_intent:
+                raise HarnessError(
+                    f"Request intent {active_request['intent']} does not match mode {expected_intent}"
+                )
+            admission = require_admission(root, active_request)
+            request_claims = active_request["scope"].get("claim_ids", [])
+            selected_claims = args.claim or request_claims
+            granularity = active_request["granularity"].get("level")
+            if args.dry_run:
+                _print_json(
+                    {
+                        "request_id": active_request["request_id"],
+                        "admission": admission,
+                        "mode": args.mode,
+                        "plan": RUN_PLANS[args.mode],
+                        "claims": selected_claims,
+                        "granularity": granularity,
+                        "max_rounds": args.max_rounds or workflow.config["max_rounds"],
+                        "will_call_codex": False,
+                    }
+                )
+                return 0
+            active_request["status"] = "EXECUTING"
+            save_request(root, active_request)
+            append_event(
+                root,
+                "workflow.started",
+                {"mode": args.mode, "plan": RUN_PLANS[args.mode]},
+                session_id=active_request["source"].get("session_id"),
+                turn_id=active_request["source"].get("turn_id"),
+                request_id=active_request["request_id"],
+                phase="INGEST",
+                artifact_refs=[
+                    {"path": f".review/requests/{active_request['request_id']}.json"},
+                    {"path": f".review/admission/{active_request['request_id']}.json"},
+                ],
+            )
+            update_state(
+                root,
+                active=True,
+                active_request_id=active_request["request_id"],
+                stop_gate_enabled=False,
+                blocked_reason=None,
+            )
+            if args.mode == "discuss":
+                result: Any = workflow.discuss(selected_claims or None)
+            elif args.mode == "review":
+                result = {
+                    "agents": workflow.review(
+                        selected_claims or None, granularity or "ADAPTIVE"
+                    )
+                }
+            elif args.mode == "revise":
+                result = {"revisions": workflow.revise()}
+            elif args.mode == "verify":
+                result = {"verifications": workflow.verify()}
+            elif args.mode == "optimize":
+                result = workflow.optimize(granularity or "ADAPTIVE")
+            else:
+                rounds = args.max_rounds or int(workflow.config["max_rounds"])
+                if rounds < 1:
+                    raise HarnessError("max_rounds must be at least 1")
+                result = workflow.full(rounds, granularity or "ADAPTIVE")
+            if args.mode != "full":
+                update_state(
+                    root,
+                    active=False,
+                    active_request_id=None,
+                    last_request_id=active_request["request_id"],
+                    active_run_id=None,
+                    stop_gate_enabled=False,
+                )
+            active_request["status"] = "COMPLETED"
+            save_request(root, active_request)
+            append_event(
+                root,
+                "workflow.completed",
+                result,
+                session_id=active_request["source"].get("session_id"),
+                turn_id=active_request["source"].get("turn_id"),
+                request_id=active_request["request_id"],
+                run_id=load_json(root / ".review" / "state.json").get("last_run_id"),
+                phase=load_json(root / ".review" / "state.json").get("phase"),
+                artifact_refs=[
+                    {"path": ".review/state.json"},
+                    {"path": ".review/claims.json"},
+                    {"path": ".review/issues.json"},
+                    {"path": ".review/revisions.json"},
+                    {"path": ".review/verifications.json"},
+                    {"path": ".review/global_contract.json"},
+                    {"path": ".review/structure.json"},
+                    {"path": ".review/granular_review.json"},
+                    {"path": ".review/final_audit.json"},
+                    {"path": f".review/requests/{active_request['request_id']}.json"},
+                    {"path": f".review/admission/{active_request['request_id']}.json"},
+                ],
+            )
+            _print_json(result)
+            return 0
+    except HarnessError as exc:
+        if active_request is not None:
+            active_request["status"] = "BLOCKED"
+            save_request(root, active_request)
+            update_state(
+                root,
+                active=False,
+                active_request_id=None,
+                last_request_id=active_request["request_id"],
+                active_run_id=None,
+                phase="BLOCKED",
+                blocked_reason=str(exc),
+            )
+            append_event(
+                root,
+                "workflow.blocked",
+                {"error": str(exc)},
+                session_id=active_request["source"].get("session_id"),
+                turn_id=active_request["source"].get("turn_id"),
+                request_id=active_request["request_id"],
+                phase="BLOCKED",
+                artifact_refs=[
+                    {"path": ".review/state.json"},
+                    {"path": f".review/requests/{active_request['request_id']}.json"},
+                    {"path": f".review/admission/{active_request['request_id']}.json"},
+                ],
+            )
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,3 @@
+snapshots/
+logs/.events.lock
+logs/audit-hook-errors.log
