@@ -3,7 +3,7 @@
   "title": "Canonical paper review request",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "request_id", "created_at", "updated_at", "source", "intent", "scope", "objectives", "constraints", "granularity", "review_contract", "assumptions", "missing_information", "confirmation", "status", "normalization_notes"],
+  "required": ["schema_version", "request_id", "created_at", "updated_at", "source", "intent", "scope", "objectives", "constraints", "granularity", "assumptions", "missing_information", "confirmation", "status", "normalization_notes"],
   "properties": {
     "schema_version": {"const": 1},
     "request_id": {"type": "string", "pattern": "^REQ-[0-9]{8}-[a-f0-9]{8}$"},
