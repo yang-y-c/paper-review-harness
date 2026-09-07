@@ -36,7 +36,6 @@ FIXED_CORE = {
     "notation",
     "data_consistency",
 }
-STRUCTURAL_CATEGORIES = {"argument", "structure", "scope", "claim", "hierarchy"}
 
 
 def _json(value: Any) -> None:
@@ -175,12 +174,13 @@ def _require_contract_confirmation(request: dict[str, Any]) -> dict[str, Any]:
 
 
 def _structural_open_issues(workflow: Workflow) -> list[dict[str, Any]]:
+    # Only core/invariant/macro/hierarchy agents have run at this checkpoint, so
+    # every severe open finding is structural/core by construction. Do not rely
+    # on Issue.category labels, which are intentionally discipline-generic.
     return [
         issue
         for issue in workflow.issues_ledger["issues"]
-        if issue["status"] == "OPEN"
-        and issue["severity"] in {"BLOCKER", "MAJOR"}
-        and issue.get("category") in STRUCTURAL_CATEGORIES
+        if issue["status"] == "OPEN" and issue["severity"] in {"BLOCKER", "MAJOR"}
     ]
 
 
