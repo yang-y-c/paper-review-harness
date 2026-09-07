@@ -1,17 +1,22 @@
-# Operate and guide
+# Operations
 
-Use the controller from the paper repository root.
+Use the contract-aware entrypoint for new `REVIEW`, `OPTIMIZE`, and `FULL` tasks.
 
-- Confirm an edit-capable request: `python scripts/control.py confirm REQ-ID`
-- Evaluate hard admission: `python scripts/control.py admit REQ-ID`
-- Preview an admitted request: `python scripts/control.py start REQ-ID --dry-run`
-- Start it: `python scripts/control.py start REQ-ID`
-- View the current state: `python scripts/control.py status`
-- Inspect all multiscale chains: `python scripts/control.py logic`
-- Trace a specific source unit: `python scripts/control.py logic --node NODE-ID`
+- Normalize a layered task: `python scripts/review_contract.py intake --text "..."`
+- Show the user-facing contract: `python scripts/review_contract.py show REQ-ID`
+- Confirm a proposed/edit-capable contract after explicit user approval: `python scripts/review_contract.py confirm REQ-ID`
+- Dry-run the confirmed plan: `python scripts/review_contract.py start REQ-ID --dry-run`
+- Execute it: `python scripts/review_contract.py start REQ-ID`
+
+The contract runner derives the internal logical depth from the confirmed dimensions and assurance profile. `STAGED_REVISION` runs a structural checkpoint before expensive detail review. `BATCH_AFTER_FULL_REVIEW` preserves the older full-pass-then-edit strategy.
+
+Use the legacy controller for observation and compatibility operations:
+
+- View state: `python scripts/control.py status`
+- Inspect multiscale logic: `python scripts/control.py logic`
+- Trace one logical node: `python scripts/control.py logic --node NODE-ID`
 - List requests: `python scripts/control.py list`
-- Derive the next safe action: `python scripts/control.py guide --request REQ-ID`
+- Derive the next safe action for legacy requests: `python scripts/control.py guide --request REQ-ID`
+- Verify the provenance log: `python scripts/control.py verify-log`
 
-Admission checks schema validity, executable intent, manuscript presence, success criteria, missing inputs, edit confirmation and permission, anti-fabrication policy, conflicts, agents/schemas, bounded rounds, the adaptive baseline or explicit coverage override, `$humanizer`, multiscale extraction/policy readiness and compilation configuration.
-
-When guiding, use actual status and failed gate details. Do not tell the user to rerun blindly. If the user requests a material change to scope or constraints, normalize a new request so the original remains immutable evidence of the earlier instruction.
+Do not use legacy `control.py start` to bypass an unconfirmed `SKILL_PROPOSED` review contract. For a material change to dimensions, assurance, revision strategy, or budget, normalize a new request so the old contract remains immutable provenance.
