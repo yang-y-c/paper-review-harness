@@ -2,31 +2,70 @@
 
 Use this contract for `REVIEW`, `OPTIMIZE`, and `FULL`.
 
-## Granularity decision
+## User-facing review contract
 
-Default to disclosed ADAPTIVE coverage. The following are cumulative coverage profiles, not mutually exclusive logical scales:
+Do not reduce the task to one granularity switch. The user-facing contract has four independent parts:
 
-- `MACRO_ONLY`: title, abstract, headings, conclusion, core logic chain, terminology, and notation only.
-- `SECTION`: macro layer plus each top-level section's purpose and adjacency.
-- `SUBSECTION`: macro layer plus every section and subsection.
-- `PARAGRAPH`: all parent layers plus every paragraph's role and transitions.
-- `SENTENCE`: all parent layers plus every sentence. This is slow and produces the largest audit corpus.
-- `ADAPTIVE`: all parent layers and every paragraph; expand risky paragraphs as complete local sentence contexts. Deep-review critical sentences and keep other sentences lightweight. The scheduler records each selection, including relation disagreement and contextual inclusion. Risk scores allocate review budget; they are not truth probabilities.
+1. **Dimensions** — what to check.
+2. **Assurance** — how much independent verification to buy with tokens.
+3. **Revision strategy** — when edits may occur.
+4. **Budget** — economy/balanced/max-quality posture and any explicit numerical cap.
 
-## Binding hierarchy
+The fixed academic core is always enabled: global structure, Claims, section logic, terminology, notation/definitions, and data consistency. These ledgers are relatively stable and high-value. Optional dimensions include paragraph logic, sentence logic, redundancy, language, citations, and scientific validity.
 
-Run and solidify layers in this order:
+## Assurance profiles
 
-1. `invariant_mapper` writes terminology, notation, data-consistency, argument-graph, Claim-consistency, and redundancy ledgers. It interprets the paper once; deterministic validators enforce the resulting facts and manuscript hash.
-2. `macro_architect` writes `.review/global_contract.json`. It fixes the theme, research question, actual contribution, scope, title pattern, abstract slots, heading policy, conclusion contract, logic chain, and imports the canonical term/notation registries.
-3. `hierarchy_reviewer` writes `.review/structure.json`. Each section or subsection records its parent, purpose, incoming premise, outgoing result, theme anchors, Claims, and transitions.
-4. `language_coherence_reviewer` loads `$humanizer` and maps explicit paragraph contracts. `argument_reviewer` recovers local section/paragraph graphs from complete bounded contexts, and `challenger` independently checks attachment coverage without mapper rationale. The sparse scheduler adds cross-scale/remote candidates. `verifier` independently tests relation proposals using the versioned ontology and literal source spans. Disagreement triggers finer local sentence recovery. The authoritative multiscale tree, contracts, risk plans and reverse pass are in `.review/coherence_registry.json`; `.review/granular_review.json` is a compatibility view.
-5. Domain reviewers inspect Claim validity. The reviser receives all parent ledgers and may not repair a local sentence by violating them.
-6. After any edit, remap Claims and invariants before rebuilding the macro/hierarchy/language layers.
-7. `final_integrity_auditor` writes `.review/final_audit.json` after review or revision. It independently rechecks all macro layers plus argument, data, Claim synchronization, and structural redundancy.
+- `FAST`: lowest-cost structural/core review. It is appropriate for early drafts and broad diagnosis. Full-sentence logic is not permitted. If the user explicitly requests paragraph or risk-adaptive sentence logic, the effective logical depth rises accordingly and the summary must disclose that cost increase.
+- `STANDARD`: balanced default when the user chooses it. Covers paragraphs and uses risk-adaptive sentence expansion for important logic. Critical Claims and important relations receive independent checking under the existing logic machinery.
+- `STRICT`: pre-submission/high-assurance profile. Uses full-sentence coverage and the strongest available logic verification path.
 
-No lower layer may weaken a parent constraint to make a local passage look acceptable. A material change to the global contract requires a new normalized user decision, not a silent downstream edit.
+Assurance describes reliability/cost, not scientific truth probability. Never silently upgrade a user to STRICT.
 
-Use `logic/local_graphs.json` for primary/additional antecedents and coverage challenges, `rhetorical_graph.json` for same-scale flow, `realization_graph.json` for support/goal realization, and `logic_disputes.json` for disagreements. Structural CONTAINS edges come only from the source parser. Terms and symbols are horizontal canonical references, not a fifth logic scale.
+## Derived compatibility granularity
 
-After edits, affected semantic relations become STALE; unchanged content/contract/ontology fingerprints can reuse independently confirmed relations. The overall source registry must still be refreshed. Ordinary awkward transitions, backtracking and long-range cognitive load remain diagnostics. Missing critical support, invalid graph references and critical disputes block acceptance. Do not equate the graph with model attention weights or with proof of scientific correctness.
+`granularity` remains an internal compatibility field, derived from the contract:
+
+- structural/core only -> `SUBSECTION`;
+- paragraph logic or risk-adaptive sentence logic -> `ADAPTIVE`;
+- full-sentence logic or STRICT -> `SENTENCE`.
+
+Scales are cumulative. Do not ask the user to choose one scale as though section, paragraph, and sentence review were mutually exclusive.
+
+## Staged revision
+
+For broad edit-capable work, `STAGED_REVISION` is the recommended proposal but must be user-confirmed. Its rule is:
+
+```text
+Snapshot V1
+  -> Claim/invariant/global/section review
+  -> structural Major/Blocker?
+       yes: revise structure -> independently verify -> rebuild slow state
+       no:  continue
+  -> paragraph/argument/logic review
+  -> local/detail revision
+  -> targeted verification
+  -> final audit and deterministic gate
+```
+
+The purpose is to avoid spending expensive paragraph/sentence tokens on text that is likely to be structurally rewritten. A review pass remains bound to one immutable manuscript snapshot; this is checkpointed batch revision, not edit-as-you-read mutation.
+
+`BATCH_AFTER_FULL_REVIEW` preserves the previous behavior: finish the full selected review first, then revise. `REVIEW_ONLY` never edits. `TARGETED_REVISION` only addresses already identified Issues.
+
+## Binding hierarchy and persistent state
+
+1. `invariant_mapper` writes terminology, notation, data-consistency, argument-graph, Claim-consistency, and redundancy ledgers.
+2. `macro_architect` writes `.review/global_contract.json`.
+3. `hierarchy_reviewer` writes `.review/structure.json` with section/subsection purpose, incoming premise, outgoing result, Claims, and transitions.
+4. Optional elastic logic work expands from paragraphs into risky sentences according to the confirmed contract. The authoritative multiscale structures remain in `.review/coherence_registry.json` and `.review/logic/`.
+5. Domain reviewers inspect Claim validity when included by the contract.
+6. The reviser receives parent ledgers and may not repair local prose by violating them.
+7. After any edit, affected Claims/invariants/logic relations become stale and are rebuilt or revalidated before acceptance.
+8. `final_integrity_auditor` performs the selected final cross-layer review.
+
+No lower layer may weaken a parent constraint to make a local passage look acceptable. A material change to the global contract requires a new user decision, not a silent downstream edit.
+
+## Cost principle
+
+Treat the core registries as persistent slow variables and the local sentence/paragraph logic graph as elastic fast variables. Token savings should come mainly from reducing deep logic verification on low-risk content, not from deleting terminology, notation, Claim, data, or global-structure state.
+
+Ordinary awkward transitions, backtracking, and long-range cognitive load remain diagnostics. Missing critical support, invalid graph references, scope contradictions, and unresolved critical disputes may block acceptance. Do not equate a risk score, graph edge, or model attention weight with proof of scientific correctness.
