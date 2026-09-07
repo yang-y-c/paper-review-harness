@@ -18,7 +18,9 @@ from paper_review_lib import (
     HarnessError,
     find_root,
     load_config,
+    load_json,
     make_run_id,
+    record_revisions,
     reset_layer_ledgers,
     update_state,
 )
@@ -173,37 +175,78 @@ def _require_contract_confirmation(request: dict[str, Any]) -> dict[str, Any]:
     return contract
 
 
-def _structural_open_issues(workflow: Workflow) -> list[dict[str, Any]]:
-    # Only core/invariant/macro/hierarchy agents have run at this checkpoint, so
-    # every severe open finding is structural/core by construction. Do not rely
-    # on Issue.category labels, which are intentionally discipline-generic.
+def _issue_versions(workflow: Workflow) -> dict[str, str]:
+    return {issue["id"]: issue["updated_at"] for issue in workflow.issues_ledger["issues"]}
+
+
+def _current_structural_issues(workflow: Workflow, baseline: dict[str, str]) -> list[dict[str, Any]]:
+    """Return only severe Issues created or re-triggered by this checkpoint pass."""
     return [
         issue
         for issue in workflow.issues_ledger["issues"]
-        if issue["status"] == "OPEN" and issue["severity"] in {"BLOCKER", "MAJOR"}
+        if issue["status"] == "OPEN"
+        and issue["severity"] in {"BLOCKER", "MAJOR"}
+        and (issue["id"] not in baseline or issue["updated_at"] != baseline[issue["id"]])
     ]
+
+
+def _revise_targets(workflow: Workflow, targets: list[dict[str, Any]]) -> int:
+    """Revise exactly the checkpoint findings, never unrelated historical Issues."""
+    if not targets:
+        return 0
+    claims_by_id = {claim["id"]: claim for claim in workflow.claims_ledger["claims"]}
+    relevant_ids = {issue["claim_id"] for issue in targets if issue.get("claim_id")}
+    relevant = [claims_by_id[cid] for cid in sorted(relevant_ids) if cid in claims_by_id]
+    update_state(workflow.root, phase="STRUCTURAL_REVISION")
+    run_id = make_run_id("structural-revision")
+    update_state(workflow.root, active_run_id=run_id)
+    assignment = {
+        "task": "Address only these structural/core checkpoint Issues with the smallest scientifically defensible manuscript change.",
+        "main_tex": workflow.config["main_tex"],
+        "manuscript_roots": workflow.config["manuscript_roots"],
+        "issues": targets,
+        "claims": relevant,
+        "global_contract": load_json(workflow.root / ".review/global_contract.json"),
+        "hierarchy": load_json(workflow.root / ".review/structure.json"),
+        "terminology_registry": load_json(workflow.root / ".review/terminology.json"),
+        "notation_registry": load_json(workflow.root / ".review/notation.json"),
+        "data_consistency": load_json(workflow.root / ".review/data_consistency.json"),
+        "argument_graph": load_json(workflow.root / ".review/argument_graph.json"),
+        "claim_consistency": load_json(workflow.root / ".review/claim_consistency.json"),
+        "constraints": [
+            "Do not address Issues outside the supplied checkpoint list.",
+            "Do not set any Issue to RESOLVED.",
+            "Use NEEDS_AUTHOR instead of inventing evidence or intent.",
+            "Preserve unrelated user changes and defer local prose polish until the detail stage.",
+        ],
+    }
+    output = workflow.runner.run("reviser", assignment, run_id)
+    record_revisions(workflow.root, output, run_id)
+    update_state(workflow.root, last_run_id=run_id, active_run_id=None)
+    return len(output["revisions"])
 
 
 def structural_checkpoint(workflow: Workflow, granularity: str, max_rounds: int) -> dict[str, Any]:
     """Stabilize slow structural variables before expensive paragraph/sentence review."""
     attempts = []
     for round_id in range(1, max_rounds + 1):
+        baseline = _issue_versions(workflow)
         reset_layer_ledgers(workflow.root)
         workflow.map_claims(force=True)
         workflow.map_invariants(force=True)
         workflow.macro_control()
         workflow.hierarchy_control("SUBSECTION" if granularity != "MACRO_ONLY" else "MACRO_ONLY")
-        structural = _structural_open_issues(workflow)
+        structural = _current_structural_issues(workflow, baseline)
         attempts.append({"round": round_id, "open_structural_issues": [i["id"] for i in structural]})
         if not structural:
             return {"status": "STABLE", "attempts": attempts}
-        revised = workflow.revise(severities={"BLOCKER", "MAJOR"})
+        revised = _revise_targets(workflow, structural)
         workflow.verify()
         if revised == 0:
             return {
                 "status": "BLOCKED",
                 "attempts": attempts,
-                "reason": "Structural issues remain but no machine revision was produced",
+                "reason": "Current structural issues remain but no machine revision was produced",
             }
     return {
         "status": "BLOCKED",
