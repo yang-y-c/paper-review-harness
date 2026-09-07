@@ -16,6 +16,8 @@ from paper_review_lib import (  # noqa: E402
     CodexRunner,
     HarnessError,
     bundled_schema,
+    load_json,
+    merge_invariant_output,
     merge_review_output,
     merge_layer_output,
     record_revisions,
@@ -121,6 +123,104 @@ def request_draft(intent: str = "REVIEW", allow_edits: bool = False) -> dict:
     }
 
 
+def invariant_output() -> dict:
+    return {
+        "agent": "invariant_mapper",
+        "reviewed_claims": ["C01"],
+        "terminology_registry": {
+            "concepts": [
+                {
+                    "id": "T01",
+                    "canonical_term": "test result",
+                    "meaning": "the stated result",
+                    "aliases": [],
+                    "forbidden_variants": [],
+                    "definition_locations": ["Abstract"],
+                    "occurrences": [
+                        {
+                            "location": "Sec. 1",
+                            "surface_form": "test result",
+                            "usage": "CANONICAL",
+                            "meaning_alignment": "MATCH",
+                        }
+                    ],
+                    "status": "CLEAR",
+                    "notes": [],
+                }
+            ],
+            "unregistered_critical_terms": [],
+        },
+        "notation_registry": {
+            "symbols": [],
+            "unregistered_critical_symbols": [],
+        },
+        "data_registry": {
+            "records": [],
+            "unmapped_material_values": [],
+        },
+        "argument_graph": {
+            "nodes": [
+                {
+                    "id": "AG-N001",
+                    "type": "EVIDENCE",
+                    "statement": "Theorem 1",
+                    "claim_id": None,
+                    "data_ids": [],
+                    "locations": ["Sec. 1, Theorem 1"],
+                },
+                {
+                    "id": "AG-N002",
+                    "type": "CLAIM",
+                    "statement": "Statement for C01",
+                    "claim_id": "C01",
+                    "data_ids": [],
+                    "locations": ["Sec. 1"],
+                },
+            ],
+            "edges": [
+                {
+                    "id": "AG-E001",
+                    "source_id": "AG-N001",
+                    "target_id": "AG-N002",
+                    "relation": "SUPPORTS",
+                    "locations": ["Sec. 1, Theorem 1"],
+                }
+            ],
+        },
+        "claim_consistency": {
+            "records": [
+                {
+                    "claim_id": "C01",
+                    "canonical_statement": "Statement for C01",
+                    "canonical_scope": "under the stated assumptions",
+                    "support_node_ids": ["AG-N001"],
+                    "body_locations": ["Sec. 1"],
+                    "occurrences": [
+                        {
+                            "id": "OCC-001",
+                            "location": "Sec. 1",
+                            "role": "BODY",
+                            "statement": "Statement for C01",
+                            "scope_relation": "SAME",
+                            "synchronized": True,
+                        }
+                    ],
+                    "status": "PASS",
+                    "notes": [],
+                }
+            ],
+            "unmapped_claim_occurrences": [],
+        },
+        "redundancy_diagnostics": {
+            "exact_duplicates": [],
+            "contribution_duplicates": [],
+            "semantic_similarity_notes": [],
+        },
+        "issues": [],
+        "review_notes": [],
+    }
+
+
 def macro_output() -> dict:
     return {
         "agent": "macro_architect",
@@ -174,12 +274,12 @@ def macro_output() -> dict:
                 "status": "PASS",
             },
             "logic_chain": [
-                {"id": "L01", "role": "PROBLEM", "statement": "Problem", "depends_on": [], "evidence_locations": ["Sec. 1"], "status": "SUPPORTED"},
-                {"id": "L02", "role": "METHOD", "statement": "Method", "depends_on": ["L01"], "evidence_locations": ["Sec. 1"], "status": "SUPPORTED"},
-                {"id": "L03", "role": "CONCLUSION", "statement": "Result", "depends_on": ["L02"], "evidence_locations": ["Conclusion"], "status": "SUPPORTED"},
+                {"id": "L01", "role": "PROBLEM", "statement": "Problem", "depends_on": [], "claim_ids": [], "evidence_locations": ["Sec. 1"], "status": "SUPPORTED"},
+                {"id": "L02", "role": "METHOD", "statement": "Method", "depends_on": ["L01"], "claim_ids": [], "evidence_locations": ["Sec. 1"], "status": "SUPPORTED"},
+                {"id": "L03", "role": "CONCLUSION", "statement": "Result", "depends_on": ["L02"], "claim_ids": ["C01"], "evidence_locations": ["Conclusion"], "status": "SUPPORTED"},
             ],
             "terminology": [
-                {"canonical": "test result", "meaning": "the stated result", "allowed_variants": [], "forbidden_variants": [], "first_definition": "Abstract"}
+                {"concept_id": "T01", "canonical": "test result", "meaning": "the stated result", "allowed_variants": [], "forbidden_variants": [], "first_definition": "Abstract"}
             ],
             "notation": [],
             "drift_controls": [
@@ -249,7 +349,9 @@ def language_output() -> dict:
 def final_audit_output() -> dict:
     dimensions = [
         "TITLE", "ABSTRACT", "SECTION_NAMES", "CONCLUSION", "LOGIC_CHAIN",
-        "TERMINOLOGY", "NOTATION", "HIERARCHY", "LANGUAGE", "CLAIM_SCOPE",
+        "TERMINOLOGY", "NOTATION", "ARGUMENT_GRAPH", "DATA_CONSISTENCY",
+        "CLAIM_CONSISTENCY", "REDUNDANCY", "HIERARCHY", "LANGUAGE",
+        "CLAIM_SCOPE",
     ]
     return {
         "agent": "final_integrity_auditor",
@@ -459,6 +561,7 @@ class HarnessTestCase(unittest.TestCase):
         config = json.loads(config_path.read_text(encoding="utf-8"))
         config["build_command"] = [sys.executable, "-c", "print('clean build')"]
         write_json(config_path, config)
+        merge_invariant_output(self.root, invariant_output(), "invariant-run")
         merge_layer_output(self.root, "macro_architect", macro_output(), "macro-run")
         merge_layer_output(
             self.root, "hierarchy_reviewer", hierarchy_output(), "hierarchy-run"
@@ -480,6 +583,8 @@ class HarnessTestCase(unittest.TestCase):
 
     def test_layered_plan_is_top_down_and_ends_with_final_audit(self) -> None:
         plan = RUN_PLANS["review"]
+        self.assertLess(plan.index("CLAIM_MAPPING"), plan.index("INVARIANT_MAPPING"))
+        self.assertLess(plan.index("INVARIANT_MAPPING"), plan.index("MACRO_CONTRACT"))
         self.assertLess(plan.index("MACRO_CONTRACT"), plan.index("HIERARCHICAL_REVIEW"))
         self.assertLess(
             plan.index("HIERARCHICAL_REVIEW"), plan.index("GRANULAR_LANGUAGE_REVIEW")
@@ -487,6 +592,10 @@ class HarnessTestCase(unittest.TestCase):
         self.assertEqual(plan[-1], "FINAL_INTEGRITY_AUDIT")
 
     def test_layer_outputs_are_schema_validated_and_solidified(self) -> None:
+        invariants = merge_invariant_output(
+            self.root, invariant_output(), "invariant_mapper-run"
+        )
+        self.assertEqual(invariants["claim_consistency"]["status"], "CURRENT")
         for agent, output, file_name in [
             ("macro_architect", macro_output(), "global_contract.json"),
             ("hierarchy_reviewer", hierarchy_output(), "structure.json"),
@@ -529,6 +638,316 @@ class HarnessTestCase(unittest.TestCase):
             merge_layer_output(
                 self.root, "final_integrity_auditor", output, "invalid-audit"
             )
+
+    def test_data_consistency_is_a_hard_gate(self) -> None:
+        output = invariant_output()
+        output["data_registry"]["records"] = [
+            {
+                "id": "DTA-01",
+                "label": "reported accuracy",
+                "kind": "RESULT",
+                "canonical_value": "0.91",
+                "unit": None,
+                "conditions": "test split",
+                "source_locations": ["Table 1"],
+                "claim_ids": ["C01"],
+                "occurrences": [
+                    {
+                        "location": "Conclusion",
+                        "value": "0.93",
+                        "unit": None,
+                        "conditions": "test split",
+                        "relation": "CONFLICT",
+                        "justification": None,
+                    }
+                ],
+                "status": "CONFLICT",
+                "notes": [],
+            }
+        ]
+        output["issues"] = [
+            {
+                "id": "CO-101",
+                "claim_id": "C01",
+                "location": "Table 1 and Conclusion",
+                "severity": "MAJOR",
+                "category": "consistency",
+                "problem": "The same reported result has two values.",
+                "why_it_matters": "The evidence and conclusion disagree.",
+                "required_action": "Reconcile the value or its conditions.",
+                "verification_criterion": "All DTA-01 occurrences agree under the same conditions.",
+                "status": "OPEN",
+                "notes": [],
+            }
+        ]
+        merge_invariant_output(self.root, output, "data-conflict")
+        report = evaluate(self.root, final=False)
+        failures = {item["id"] for item in report["checks"] if item["status"] == "FAIL"}
+        self.assertIn("G20", failures)
+
+    def test_terminology_collision_is_a_hard_gate(self) -> None:
+        output = invariant_output()
+        duplicate = dict(output["terminology_registry"]["concepts"][0])
+        duplicate.update(
+            {
+                "id": "T02",
+                "meaning": "a different concept",
+                "definition_locations": ["Sec. 2"],
+                "occurrences": [
+                    {
+                        "location": "Sec. 2",
+                        "surface_form": "test result",
+                        "usage": "CANONICAL",
+                        "meaning_alignment": "CONFLICT",
+                    }
+                ],
+                "status": "CONFLICT",
+            }
+        )
+        output["terminology_registry"]["concepts"].append(duplicate)
+        output["issues"] = [
+            {
+                "id": "CO-103",
+                "claim_id": "C01",
+                "location": "Sec. 1 and Sec. 2",
+                "severity": "MAJOR",
+                "category": "consistency",
+                "problem": "One canonical term names two concepts.",
+                "why_it_matters": "The manuscript cannot be interpreted consistently.",
+                "required_action": "Disambiguate the concepts and freeze their terms.",
+                "verification_criterion": "Every canonical term has one concept owner.",
+                "status": "OPEN",
+                "notes": [],
+            }
+        ]
+        merge_invariant_output(self.root, output, "term-conflict")
+        report = evaluate(self.root, final=False)
+        failures = {item["id"] for item in report["checks"] if item["status"] == "FAIL"}
+        self.assertIn("G17", failures)
+
+    def test_orphan_core_claim_is_an_argument_gate_failure(self) -> None:
+        output = invariant_output()
+        output["argument_graph"]["nodes"] = [
+            output["argument_graph"]["nodes"][1]
+        ]
+        output["argument_graph"]["edges"] = []
+        output["claim_consistency"]["records"][0]["support_node_ids"] = []
+        output["claim_consistency"]["records"][0]["status"] = "FAIL"
+        output["issues"] = [
+            {
+                "id": "AR-103",
+                "claim_id": "C01",
+                "location": "Sec. 1",
+                "severity": "BLOCKER",
+                "category": "argument",
+                "problem": "The CORE Claim has no traceable support node.",
+                "why_it_matters": "The central conclusion is structurally unsupported.",
+                "required_action": "Link existing evidence or narrow the Claim.",
+                "verification_criterion": "C01 has a support path from evidence or premises.",
+                "status": "OPEN",
+                "notes": [],
+            }
+        ]
+        merge_invariant_output(self.root, output, "orphan-claim")
+        report = evaluate(self.root, final=False)
+        failures = {item["id"] for item in report["checks"] if item["status"] == "FAIL"}
+        self.assertIn("G19", failures)
+
+    def test_notation_type_conflict_is_a_hard_gate(self) -> None:
+        output = invariant_output()
+        output["notation_registry"]["symbols"] = [
+            {
+                "id": "N01",
+                "symbol": "q",
+                "canonical_form": "q",
+                "meaning": "state vector",
+                "domain_or_type": "vector",
+                "definition_locations": ["Sec. 1"],
+                "occurrences": [
+                    {
+                        "location": "Sec. 2",
+                        "surface_form": "q",
+                        "meaning": "scalar coefficient",
+                        "domain_or_type": "scalar",
+                        "alignment": "CONFLICT",
+                    }
+                ],
+                "status": "CONFLICT",
+                "notes": [],
+            }
+        ]
+        output["issues"] = [
+            {
+                "id": "CO-104",
+                "claim_id": "C01",
+                "location": "Sec. 1 and Sec. 2",
+                "severity": "MAJOR",
+                "category": "consistency",
+                "problem": "q changes from vector to scalar.",
+                "why_it_matters": "Equations use incompatible types.",
+                "required_action": "Use distinct symbols or one stable type.",
+                "verification_criterion": "N01 has one meaning and type.",
+                "status": "OPEN",
+                "notes": [],
+            }
+        ]
+        merge_invariant_output(self.root, output, "notation-conflict")
+        report = evaluate(self.root, final=False)
+        failures = {item["id"] for item in report["checks"] if item["status"] == "FAIL"}
+        self.assertIn("G18", failures)
+
+    def test_claim_scope_drift_is_a_hard_gate(self) -> None:
+        output = invariant_output()
+        record = output["claim_consistency"]["records"][0]
+        record["occurrences"].append(
+            {
+                "id": "OCC-002",
+                "location": "Conclusion",
+                "role": "CONCLUSION",
+                "statement": "Statement for C01 without restrictions",
+                "scope_relation": "BROADER",
+                "synchronized": False,
+            }
+        )
+        record["status"] = "FAIL"
+        output["issues"] = [
+            {
+                "id": "CO-102",
+                "claim_id": "C01",
+                "location": "Conclusion",
+                "severity": "MAJOR",
+                "category": "consistency",
+                "problem": "The Conclusion broadens C01 beyond its canonical scope.",
+                "why_it_matters": "The final Claim is not supported by the body.",
+                "required_action": "Restore the stated scope or add valid support.",
+                "verification_criterion": "The Conclusion is SAME or NARROWER than C01.",
+                "status": "OPEN",
+                "notes": [],
+            }
+        ]
+        merge_invariant_output(self.root, output, "claim-conflict")
+        report = evaluate(self.root, final=False)
+        failures = {item["id"] for item in report["checks"] if item["status"] == "FAIL"}
+        self.assertIn("G21", failures)
+
+    def test_macro_contract_cannot_rename_a_registry_concept(self) -> None:
+        merge_invariant_output(self.root, invariant_output(), "invariant-run")
+        output = macro_output()
+        output["contract"]["terminology"][0]["canonical"] = "renamed result"
+        with self.assertRaises(HarnessError):
+            merge_layer_output(self.root, "macro_architect", output, "macro-run")
+
+    def test_revision_invalidates_invariant_registries(self) -> None:
+        merge_invariant_output(self.root, invariant_output(), "invariant-run")
+        merge_review_output(self.root, review_output())
+        record_revisions(
+            self.root,
+            {
+                "agent": "reviser",
+                "revisions": [
+                    {
+                        "issue_id": "TH-001",
+                        "revision_status": "CLAIMED_FIXED",
+                        "changed_files": ["manuscript/main.tex"],
+                        "changed_locations": ["Sec. 1"],
+                        "affected_claims": ["C01"],
+                        "change_types": ["proof"],
+                        "resolution_summary": "Changed the manuscript.",
+                    }
+                ],
+            },
+            "revision-run",
+        )
+        self.assertEqual(
+            load_json(self.root / ".review" / "claim_consistency.json")["status"],
+            "STALE",
+        )
+
+    def test_source_hash_change_blocks_stale_invariants(self) -> None:
+        merge_invariant_output(self.root, invariant_output(), "invariant-run")
+        manuscript = self.root / "manuscript" / "main.tex"
+        manuscript.write_text(
+            "\\documentclass{article}\\begin{document}Changed\\end{document}\n",
+            encoding="utf-8",
+        )
+        report = evaluate(self.root, final=False)
+        g16 = next(item for item in report["checks"] if item["id"] == "G16")
+        self.assertEqual(g16["status"], "FAIL")
+
+    def test_semantic_similarity_is_diagnostic_only(self) -> None:
+        output = invariant_output()
+        output["redundancy_diagnostics"]["semantic_similarity_notes"] = [
+            {
+                "locations": ["Abstract", "Conclusion"],
+                "diagnosis": "Both restate the central finding.",
+                "recommendation": "Retain unless readability suffers.",
+            }
+        ]
+        merge_invariant_output(self.root, output, "similarity-note")
+        report = evaluate(self.root, final=False)
+        g22 = next(item for item in report["checks"] if item["id"] == "G22")
+        self.assertEqual(g22["status"], "PASS")
+
+    def test_pluggable_scientific_validator_contract(self) -> None:
+        config_path = self.root / ".review" / "config.json"
+        config = load_json(config_path)
+        payload = {
+            "validator_id": "rank_consistency",
+            "status": "PASS",
+            "summary": "Matrix ranks agree.",
+            "evidence": ["artifact/rank-report.json"],
+        }
+        config["scientific_validators"] = [
+            {
+                "id": "rank_consistency",
+                "command": [
+                    sys.executable,
+                    "-c",
+                    f"import json; print(json.dumps({payload!r}))",
+                ],
+                "required": True,
+                "timeout_seconds": 30,
+            }
+        ]
+        write_json(config_path, config)
+        report = evaluate(self.root, final=True)
+        scientific = next(
+            item for item in report["checks"] if item["id"] == "SV-rank_consistency"
+        )
+        self.assertEqual(scientific["status"], "PASS")
+        records = list(
+            (self.root / ".review" / "scientific-validation").glob("*/result.json")
+        )
+        self.assertEqual(len(records), 1)
+        self.assertEqual(load_json(records[0])["output"]["status"], "PASS")
+
+    def test_required_scientific_validator_failure_blocks(self) -> None:
+        config_path = self.root / ".review" / "config.json"
+        config = load_json(config_path)
+        payload = {
+            "validator_id": "data_reproduction",
+            "status": "FAIL",
+            "summary": "Reported value was not reproduced.",
+            "evidence": ["artifacts/reproduction.json"],
+        }
+        config["scientific_validators"] = [
+            {
+                "id": "data_reproduction",
+                "command": [
+                    sys.executable,
+                    "-c",
+                    f"import json; print(json.dumps({payload!r}))",
+                ],
+                "required": True,
+                "timeout_seconds": 30,
+            }
+        ]
+        write_json(config_path, config)
+        report = evaluate(self.root, final=True)
+        scientific = next(
+            item for item in report["checks"] if item["id"] == "SV-data_reproduction"
+        )
+        self.assertEqual(scientific["status"], "FAIL")
 
     def test_subagent_hook_blocks_non_json_output(self) -> None:
         payload = {

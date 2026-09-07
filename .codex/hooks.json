@@ -91,7 +91,7 @@
         ]
       },
       {
-        "matcher": "claim[-_]mapper|macro[-_]architect|hierarchy[-_]reviewer|language[-_]coherence[-_]reviewer|final[-_]integrity[-_]auditor|theory[-_]reviewer|algorithm[-_]reviewer|numerical[-_]reviewer|argument[-_]reviewer|challenger|reviser|verifier",
+        "matcher": "claim[-_]mapper|invariant[-_]mapper|macro[-_]architect|hierarchy[-_]reviewer|language[-_]coherence[-_]reviewer|final[-_]integrity[-_]auditor|theory[-_]reviewer|algorithm[-_]reviewer|numerical[-_]reviewer|argument[-_]reviewer|challenger|reviser|verifier",
         "hooks": [
           {
             "type": "command",

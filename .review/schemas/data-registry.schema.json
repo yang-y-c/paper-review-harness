@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "run_id", "updated_at", "source_snapshot", "payload"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "status": {"enum": ["NOT_RUN", "CURRENT", "STALE"]},
+    "run_id": {"type": ["string", "null"]},
+    "updated_at": {"type": ["string", "null"], "format": "date-time"},
+    "source_snapshot": {"oneOf": [{"type": "null"}, {"$ref": "source-snapshot.schema.json#/$defs/source_snapshot"}]},
+    "payload": {"oneOf": [{"type": "null"}, {"$ref": "invariant-output.schema.json#/$defs/data_registry"}]}
+  }
+}

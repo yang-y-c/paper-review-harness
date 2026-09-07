@@ -3,6 +3,7 @@
   "main_tex": "manuscript/main.tex",
   "manuscript_roots": ["manuscript"],
   "figure_roots": ["figures"],
+  "evidence_roots": [],
   "bibliography_files": ["manuscript/references.bib", "references.bib"],
   "build_command": [],
   "compile_timeout_seconds": 180,
@@ -14,6 +15,7 @@
   "global_review_change_threshold": 0.2,
   "require_humanizer": true,
   "language_review_skill": "humanizer",
+  "scientific_validators": [],
   "logging": {
     "enabled": true,
     "redact_secrets": true,
@@ -47,6 +49,13 @@
     "require_global_contract": true,
     "require_hierarchy_review": true,
     "require_granular_review": true,
-    "require_final_integrity_audit": true
+    "require_final_integrity_audit": true,
+    "require_current_invariants": true,
+    "require_terminology_consistency": true,
+    "require_notation_consistency": true,
+    "require_argument_integrity": true,
+    "require_data_consistency": true,
+    "require_claim_consistency": true,
+    "block_structural_redundancy": true
   }
 }

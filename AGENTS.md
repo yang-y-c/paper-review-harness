@@ -26,6 +26,10 @@ User-facing work enters through the repository-local `paper-review-operator` ski
 16. Never infer review granularity. Require an explicit choice of macro-only, section, subsection, paragraph, sentence, or adaptive depth before admission.
 17. Language and paragraph-logic review must load `$humanizer`. Apply it in embedded mode without changing scientific facts, citations, numbers, formulas, symbol meanings, qualifiers, or author voice.
 18. Acceptance requires `final_audit.json` status `PASS`; a final auditor may not claim PASS with a failed dimension or a remaining audit Issue.
+19. For layered work, solidify `terminology.json`, `notation.json`, `data_consistency.json`, `argument_graph.json`, `claim_consistency.json`, and `redundancy.json` before the macro contract. A manuscript edit makes these ledgers stale until they are remapped against the new source hash.
+20. Data and Claim consistency are acceptance gates. Repeated material values must preserve value, unit, and conditions; Abstract and Conclusion Claims may not broaden, contradict, or lose synchronization with their canonical body Claim.
+21. Keep discipline-specific scientific truth tests out of the generic harness. Add them only through configured `scientific_validators`; do not hard-code a paper-specific criterion as a universal invariant.
+22. Semantic similarity and ordinary Abstract/Conclusion restatement are diagnostic, not universal failures. Only structural redundancy contradictions enter the hard Gate.
 
 ## Validation
 

@@ -7,6 +7,11 @@ from pathlib import Path
 
 SCHEMAS = {
     "claim_mapper": "claim-map-output.schema.json",
+    "invariant_mapper": "invariant-output.schema.json",
+    "macro_architect": "macro-output.schema.json",
+    "hierarchy_reviewer": "hierarchy-output.schema.json",
+    "language_coherence_reviewer": "language-output.schema.json",
+    "final_integrity_auditor": "final-audit-output.schema.json",
     "theory_reviewer": "review-output.schema.json",
     "algorithm_reviewer": "review-output.schema.json",
     "numerical_reviewer": "review-output.schema.json",

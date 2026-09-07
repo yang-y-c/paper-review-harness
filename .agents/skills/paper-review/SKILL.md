@@ -5,9 +5,9 @@ description: Claim-centered discussion, independent review, controlled revision,
 
 # Paper Review Harness
 
-Treat `.review/claims.json` and `.review/issues.json` as the shared state, not reviewer prose. Read `.review/config.json`, `.review/state.json`, and [references/protocol.md](references/protocol.md) before acting.
+Treat `.review/claims.json` and `.review/issues.json` as the shared state, not reviewer prose. Read `.review/config.json`, `.review/state.json`, and [references/protocol.md](references/protocol.md) before acting. Read [references/invariant-registries.md](references/invariant-registries.md) when mapping, revising, verifying, or validating terminology, notation, data, Claim synchronization, argument support, redundancy, or a discipline-specific validator.
 
-For layered review or optimization, treat `.review/global_contract.json`, `.review/structure.json`, and `.review/granular_review.json` as binding parent state. Local edits may not drift from their theme, terminology, notation, hierarchy, or Claim-scope constraints. Language and paragraph-logic work must use `$humanizer`.
+For layered review or optimization, solidify the six invariant ledgers before `.review/global_contract.json`, `.review/structure.json`, and `.review/granular_review.json`. Treat all of them as binding parent state. Local edits may not drift from their theme, terminology, notation, data, argument graph, hierarchy, or Claim-scope constraints. Language and paragraph-logic work must use `$humanizer`.
 
 For a user-facing new task, use `$paper-review-operator` to normalize natural language, create a canonical Request, confirm edit scope when required, and pass deterministic admission. This skill governs the scientific workflow after admission. A child agent executing a supplied assignment must follow its role contract and must not create a second Request.
 
@@ -25,6 +25,7 @@ Read [references/claim-rules.md](references/claim-rules.md) when mapping or chan
 ## Invariants
 
 - Never invent scientific evidence, citations, proofs, data, or author intent.
+- Keep generic cross-paper invariants separate from discipline-specific truth tests. Put the latter behind configured scientific-validator commands.
 - Reviewer, mapper, challenger, and verifier roles are read-only. Only the reviser edits manuscript files.
 - A reviser cannot resolve an Issue. Only independent verifier `PASS` can do so.
 - Strong or extreme Claims require a challenger pass. A challenger attacks; it does not repair.

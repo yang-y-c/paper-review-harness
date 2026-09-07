@@ -9,13 +9,13 @@
     "result": {"enum": ["PASS", "FAIL", "NEEDS_AUTHOR"]},
     "checks": {
       "type": "array",
-      "minItems": 8,
+      "minItems": 14,
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": ["dimension", "status", "evidence", "detail"],
         "properties": {
-          "dimension": {"enum": ["TITLE", "ABSTRACT", "SECTION_NAMES", "CONCLUSION", "LOGIC_CHAIN", "TERMINOLOGY", "NOTATION", "HIERARCHY", "LANGUAGE", "CLAIM_SCOPE"]},
+          "dimension": {"enum": ["TITLE", "ABSTRACT", "SECTION_NAMES", "CONCLUSION", "LOGIC_CHAIN", "TERMINOLOGY", "NOTATION", "ARGUMENT_GRAPH", "DATA_CONSISTENCY", "CLAIM_CONSISTENCY", "REDUNDANCY", "HIERARCHY", "LANGUAGE", "CLAIM_SCOPE"]},
           "status": {"enum": ["PASS", "FAIL", "NEEDS_AUTHOR"]},
           "evidence": {"type": "array", "items": {"type": "string"}},
           "detail": {"type": "string", "minLength": 1}

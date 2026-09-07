@@ -36,6 +36,7 @@ CATEGORY_PREFIX = {
 
 AGENT_SCHEMA = {
     "intake_coordinator": "request-draft.schema.json",
+    "invariant_mapper": "invariant-output.schema.json",
     "macro_architect": "macro-output.schema.json",
     "hierarchy_reviewer": "hierarchy-output.schema.json",
     "language_coherence_reviewer": "language-output.schema.json",
@@ -187,6 +188,8 @@ def resolve_repo_path(root: Path, relative: str) -> Path:
 
 
 def route_claim(claim: dict[str, Any]) -> list[str]:
+    if claim.get("status") == "REMOVED":
+        return []
     agents: set[str] = set()
     claim_types = set(claim.get("type", []))
     if "theoretical" in claim_types:
@@ -262,6 +265,8 @@ def merge_claim_map(root: Path, output: dict[str, Any]) -> dict[str, Any]:
         current = existing.get(claim["id"], {})
         merged = dict(claim)
         merged["status"] = current.get("status", "MAPPED")
+        if merged["status"] == "REMOVED":
+            merged["status"] = "MAPPED"
         merged["reviewed_by"] = sorted(set(current.get("reviewed_by", [])))
         if merged["strength"] in {"STRONG", "EXTREME"}:
             merged["adversarial_status"] = current.get("adversarial_status", "PENDING")
@@ -275,6 +280,8 @@ def merge_claim_map(root: Path, output: dict[str, Any]) -> dict[str, Any]:
         note = "Not present in the latest mapper output; retained for ledger history."
         if note not in existing[claim_id].setdefault("notes", []):
             existing[claim_id]["notes"].append(note)
+        existing[claim_id]["status"] = "REMOVED"
+        existing[claim_id]["adversarial_status"] = "NOT_REQUIRED"
     ledger = {
         "schema_version": 1,
         "coverage": output["coverage"],
@@ -375,6 +382,74 @@ LAYER_LEDGER = {
     "final_integrity_auditor": ("final_audit.json", "final-audit.schema.json"),
 }
 
+INVARIANT_LEDGER = {
+    "terminology_registry": ("terminology.json", "terminology-registry.schema.json"),
+    "notation_registry": ("notation.json", "notation-registry.schema.json"),
+    "data_registry": ("data_consistency.json", "data-registry.schema.json"),
+    "argument_graph": ("argument_graph.json", "argument-graph.schema.json"),
+    "claim_consistency": ("claim_consistency.json", "claim-consistency.schema.json"),
+    "redundancy_diagnostics": ("redundancy.json", "redundancy-diagnostics.schema.json"),
+}
+
+GENERATED_MANUSCRIPT_SUFFIXES = {
+    ".aux",
+    ".bbl",
+    ".bcf",
+    ".blg",
+    ".fdb_latexmk",
+    ".fls",
+    ".log",
+    ".out",
+    ".run.xml",
+    ".synctex.gz",
+    ".toc",
+}
+
+
+def manuscript_snapshot(root: Path) -> dict[str, Any]:
+    """Hash configured manuscript inputs while excluding ordinary build products."""
+    config = load_config(root)
+    candidates: dict[str, Path] = {}
+    configured = [config["main_tex"]]
+    configured.extend(config.get("manuscript_roots", []))
+    configured.extend(config.get("figure_roots", []))
+    configured.extend(config.get("evidence_roots", []))
+    configured.extend(config.get("bibliography_files", []))
+    generated_pdf = resolve_repo_path(root, config["main_tex"]).with_suffix(".pdf")
+    for relative in configured:
+        path = resolve_repo_path(root, relative)
+        paths = [path] if path.is_file() else path.rglob("*") if path.is_dir() else []
+        for candidate in paths:
+            if not candidate.is_file():
+                continue
+            resolved = candidate.resolve()
+            try:
+                relative_path = resolved.relative_to(root.resolve()).as_posix()
+            except ValueError:
+                continue
+            lowered = resolved.name.casefold()
+            if resolved == generated_pdf or any(
+                lowered.endswith(suffix) for suffix in GENERATED_MANUSCRIPT_SUFFIXES
+            ):
+                continue
+            candidates[relative_path] = resolved
+    files = [
+        {"path": relative, "sha256": sha256_file(path)}
+        for relative, path in sorted(candidates.items())
+    ]
+    return {"sha256": sha256_value(files), "files": files}
+
+
+def _empty_invariant_ledger() -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "status": "NOT_RUN",
+        "run_id": None,
+        "updated_at": None,
+        "source_snapshot": None,
+        "payload": None,
+    }
+
 
 def reset_layer_ledgers(root: Path) -> None:
     for file_name, schema_name in [
@@ -392,7 +467,32 @@ def reset_layer_ledgers(root: Path) -> None:
         }
         validate_with_schema(root, schema_name, ledger)
         write_json(root / ".review" / file_name, ledger)
+    for file_name, schema_name in INVARIANT_LEDGER.values():
+        ledger = _empty_invariant_ledger()
+        validate_with_schema(root, schema_name, ledger)
+        write_json(root / ".review" / file_name, ledger)
     append_event(root, "layers.reset", {"reason": "new layered review request"})
+
+
+def invalidate_invariant_ledgers(root: Path, reason: str, run_id: str | None = None) -> None:
+    artifacts: list[dict[str, str]] = []
+    for file_name, schema_name in INVARIANT_LEDGER.values():
+        path = root / ".review" / file_name
+        ledger = load_json(path)
+        if ledger["status"] == "CURRENT":
+            ledger["status"] = "STALE"
+            ledger["updated_at"] = utc_now()
+            validate_with_schema(root, schema_name, ledger)
+            write_json(path, ledger)
+            artifacts.append({"path": str(path.relative_to(root))})
+    if artifacts:
+        append_event(
+            root,
+            "invariants.invalidated",
+            {"reason": reason},
+            run_id=run_id,
+            artifact_refs=artifacts,
+        )
 
 
 def _has_cycle(graph: dict[str, list[str]]) -> bool:
@@ -414,9 +514,343 @@ def _has_cycle(graph: dict[str, list[str]]) -> bool:
     return any(visit(node) for node in graph)
 
 
+def _normalized_duplicates(values: Iterable[str]) -> list[str]:
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for value in values:
+        normalized = _normalized_text(value)
+        if normalized in seen:
+            duplicates.add(value)
+        seen.add(normalized)
+    return sorted(duplicates)
+
+
+def _graph_reachable(
+    starts: set[str], targets: set[str], adjacency: dict[str, set[str]]
+) -> bool:
+    queue = list(starts)
+    visited = set(starts)
+    while queue:
+        current = queue.pop(0)
+        if current in targets:
+            return True
+        for neighbor in adjacency.get(current, set()):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+    return False
+
+
+def validate_invariant_output(root: Path, output: dict[str, Any]) -> None:
+    validate_with_schema(root, AGENT_SCHEMA["invariant_mapper"], output)
+    claims = [
+        claim
+        for claim in load_json(root / ".review" / "claims.json")["claims"]
+        if claim["status"] != "REMOVED"
+    ]
+    claim_by_id = {claim["id"]: claim for claim in claims}
+    known_claims = set(claim_by_id)
+    reviewed = set(output["reviewed_claims"])
+    if reviewed != known_claims:
+        raise HarnessError(
+            "Invariant mapper must cover every active Claim; "
+            f"missing={sorted(known_claims - reviewed)}, unknown={sorted(reviewed - known_claims)}"
+        )
+
+    terminology = output["terminology_registry"]
+    concepts = terminology["concepts"]
+    concept_ids = [item["id"] for item in concepts]
+    if len(concept_ids) != len(set(concept_ids)):
+        raise HarnessError("Terminology registry contains duplicate concept IDs")
+    duplicate_terms = _normalized_duplicates(item["canonical_term"] for item in concepts)
+    term_owners: dict[str, set[str]] = {}
+    for item in concepts:
+        for term in [item["canonical_term"], *item["aliases"]]:
+            term_owners.setdefault(_normalized_text(term), set()).add(item["id"])
+    collisions = sorted(term for term, owners in term_owners.items() if len(owners) > 1)
+
+    notation = output["notation_registry"]
+    symbols = notation["symbols"]
+    notation_ids = [item["id"] for item in symbols]
+    if len(notation_ids) != len(set(notation_ids)):
+        raise HarnessError("Notation registry contains duplicate notation IDs")
+    duplicate_symbols = _normalized_duplicates(item["canonical_form"] for item in symbols)
+
+    data_registry = output["data_registry"]
+    data_records = data_registry["records"]
+    data_ids = [item["id"] for item in data_records]
+    if len(data_ids) != len(set(data_ids)):
+        raise HarnessError("Data registry contains duplicate data IDs")
+    unknown_data_claims = sorted(
+        {
+            claim_id
+            for item in data_records
+            for claim_id in item["claim_ids"]
+            if claim_id not in known_claims
+        }
+    )
+    if unknown_data_claims:
+        raise HarnessError(f"Data registry references unknown Claims: {unknown_data_claims}")
+
+    graph = output["argument_graph"]
+    nodes = graph["nodes"]
+    edges = graph["edges"]
+    node_ids = [item["id"] for item in nodes]
+    edge_ids = [item["id"] for item in edges]
+    if len(node_ids) != len(set(node_ids)) or len(edge_ids) != len(set(edge_ids)):
+        raise HarnessError("Argument graph contains duplicate node or edge IDs")
+    known_nodes = set(node_ids)
+    known_data = set(data_ids)
+    unknown_endpoints = sorted(
+        {
+            endpoint
+            for edge in edges
+            for endpoint in [edge["source_id"], edge["target_id"]]
+            if endpoint not in known_nodes
+        }
+    )
+    if unknown_endpoints:
+        raise HarnessError(f"Argument graph references unknown nodes: {unknown_endpoints}")
+    unknown_node_claims = sorted(
+        {
+            item["claim_id"]
+            for item in nodes
+            if item["claim_id"] is not None and item["claim_id"] not in known_claims
+        }
+    )
+    unknown_node_data = sorted(
+        {data_id for item in nodes for data_id in item["data_ids"] if data_id not in known_data}
+    )
+    if unknown_node_claims or unknown_node_data:
+        raise HarnessError(
+            f"Argument graph has unknown Claim/Data references: claims={unknown_node_claims}, data={unknown_node_data}"
+        )
+    claim_nodes = {
+        claim_id: {item["id"] for item in nodes if item["claim_id"] == claim_id}
+        for claim_id in known_claims
+    }
+    missing_claim_nodes = sorted(claim_id for claim_id, ids in claim_nodes.items() if not ids)
+    dependency_relations = {"DEPENDS_ON", "SUPPORTS", "DERIVES", "VALIDATES"}
+    adjacency: dict[str, set[str]] = {node_id: set() for node_id in known_nodes}
+    reverse_adjacency: dict[str, set[str]] = {node_id: set() for node_id in known_nodes}
+    for edge in edges:
+        if edge["relation"] in dependency_relations:
+            adjacency[edge["source_id"]].add(edge["target_id"])
+            reverse_adjacency[edge["target_id"]].add(edge["source_id"])
+    argument_cycle = _has_cycle({key: sorted(value) for key, value in adjacency.items()})
+    broken_dependencies = sorted(
+        f"{dependency}->{claim['id']}"
+        for claim in claims
+        for dependency in claim["dependencies"]
+        if dependency in claim_nodes
+        and not _graph_reachable(claim_nodes[dependency], claim_nodes[claim["id"]], adjacency)
+    )
+    support_types = {"ASSUMPTION", "PREMISE", "DERIVATION", "DATA", "EVIDENCE", "REFERENCE"}
+    orphan_core_claims: list[str] = []
+    node_by_id = {item["id"]: item for item in nodes}
+    for claim in claims:
+        if claim["centrality"] != "CORE":
+            continue
+        starts = claim_nodes.get(claim["id"], set())
+        queue = list(starts)
+        visited = set(starts)
+        supported = False
+        while queue:
+            current = queue.pop(0)
+            for source in reverse_adjacency.get(current, set()):
+                supported = supported or node_by_id[source]["type"] in support_types
+                if source not in visited:
+                    visited.add(source)
+                    queue.append(source)
+        if not supported:
+            orphan_core_claims.append(claim["id"])
+
+    consistency = output["claim_consistency"]
+    records = consistency["records"]
+    record_ids = [item["claim_id"] for item in records]
+    record_mapping_invalid = (
+        len(record_ids) != len(set(record_ids)) or set(record_ids) != known_claims
+    )
+    for record in records:
+        claim = claim_by_id.get(record["claim_id"])
+        if claim is None:
+            continue
+        if record["canonical_statement"] != claim["statement"]:
+            raise HarnessError(
+                f"Claim consistency statement differs from Claim Ledger for {claim['id']}"
+            )
+        if record["canonical_scope"] != claim["scope"]:
+            raise HarnessError(
+                f"Claim consistency scope differs from Claim Ledger for {claim['id']}"
+            )
+        unknown_support = sorted(set(record["support_node_ids"]) - known_nodes)
+        if unknown_support:
+            raise HarnessError(
+                f"Claim consistency references unknown support nodes for {claim['id']}: {unknown_support}"
+            )
+
+    redundancy = output["redundancy_diagnostics"]
+    unknown_redundancy_claims = sorted(
+        {
+            claim_id
+            for item in redundancy["contribution_duplicates"]
+            for claim_id in item["claim_ids"]
+            if claim_id not in known_claims
+        }
+    )
+    if unknown_redundancy_claims:
+        raise HarnessError(
+            f"Redundancy diagnostics reference unknown Claims: {unknown_redundancy_claims}"
+        )
+
+    semantic_conflict = bool(
+        duplicate_terms
+        or collisions
+        or duplicate_symbols
+        or terminology["unregistered_critical_terms"]
+        or notation["unregistered_critical_symbols"]
+        or data_registry["unmapped_material_values"]
+        or consistency["unmapped_claim_occurrences"]
+        or missing_claim_nodes
+        or argument_cycle
+        or broken_dependencies
+        or orphan_core_claims
+        or record_mapping_invalid
+        or any(item["status"] != "CLEAR" for item in concepts)
+        or any(
+            occurrence["usage"] == "CANONICAL"
+            and _normalized_text(occurrence["surface_form"])
+            != _normalized_text(item["canonical_term"])
+            or occurrence["usage"] == "ALIAS"
+            and _normalized_text(occurrence["surface_form"])
+            not in {_normalized_text(alias) for alias in item["aliases"]}
+            or occurrence["usage"] not in {"CANONICAL", "ALIAS"}
+            or occurrence["meaning_alignment"] != "MATCH"
+            for item in concepts
+            for occurrence in item["occurrences"]
+        )
+        or any(
+            {_normalized_text(item["canonical_term"]), *(_normalized_text(x) for x in item["aliases"])}
+            & {_normalized_text(x) for x in item["forbidden_variants"]}
+            for item in concepts
+        )
+        or any(
+            _normalized_text(occurrence["surface_form"])
+            in {_normalized_text(x) for x in item["forbidden_variants"]}
+            for item in concepts
+            for occurrence in item["occurrences"]
+        )
+        or any(item["status"] != "CLEAR" for item in symbols)
+        or any(
+            occurrence["alignment"] != "MATCH"
+            or occurrence["meaning"] != item["meaning"]
+            or occurrence["domain_or_type"] != item["domain_or_type"]
+            for item in symbols
+            for occurrence in item["occurrences"]
+        )
+        or any(item["status"] != "CLEAR" for item in data_records)
+        or any(
+            occurrence["relation"] in {"CONFLICT", "NEEDS_AUTHOR"}
+            or (
+                occurrence["relation"] == "MATCH"
+                and (
+                    occurrence["value"] != item["canonical_value"]
+                    or occurrence["unit"] != item["unit"]
+                    or occurrence["conditions"] != item["conditions"]
+                )
+            )
+            or (
+                occurrence["relation"] == "AUTHORIZED_VARIATION"
+                and not (
+                    occurrence["justification"]
+                    and occurrence["justification"].strip()
+                )
+            )
+            for item in data_records
+            for occurrence in item["occurrences"]
+        )
+        or any(item["status"] != "PASS" for item in records)
+        or any(
+            claim_by_id.get(item["claim_id"], {}).get("centrality") == "CORE"
+            and (not item["support_node_ids"] or not item["body_locations"])
+            for item in records
+        )
+        or any(
+            not any(
+                occurrence["role"] in {"BODY", "RESULT", "DISCUSSION"}
+                for occurrence in item["occurrences"]
+            )
+            for item in records
+        )
+        or any(
+            not occurrence["synchronized"]
+            or occurrence["scope_relation"]
+            in {"BROADER", "CONTRADICTORY", "UNMAPPED"}
+            for item in records
+            for occurrence in item["occurrences"]
+        )
+        or any(
+            item["classification"] != "INTENTIONAL" and item["severity"] == "MAJOR"
+            for item in redundancy["exact_duplicates"]
+        )
+        or any(
+            item["classification"] == "INTENTIONAL"
+            and not (item["justification"] and item["justification"].strip())
+            for item in redundancy["exact_duplicates"]
+        )
+        or any(not item["distinct"] for item in redundancy["contribution_duplicates"])
+    )
+    if semantic_conflict and not output["issues"]:
+        raise HarnessError(
+            "Invariant mapper reported unresolved facts without a structured Issue"
+        )
+
+
+def merge_invariant_output(root: Path, output: dict[str, Any], run_id: str) -> dict[str, Any]:
+    validate_invariant_output(root, output)
+    merge_review_output(
+        root,
+        {
+            "agent": "invariant_mapper",
+            "reviewed_claims": output["reviewed_claims"],
+            "issues": output["issues"],
+            "review_notes": output["review_notes"],
+        },
+    )
+    snapshot = manuscript_snapshot(root)
+    timestamp = utc_now()
+    artifacts: list[dict[str, str]] = []
+    result: dict[str, Any] = {}
+    for output_key, (file_name, schema_name) in INVARIANT_LEDGER.items():
+        ledger = {
+            "schema_version": 1,
+            "status": "CURRENT",
+            "run_id": run_id,
+            "updated_at": timestamp,
+            "source_snapshot": snapshot,
+            "payload": output[output_key],
+        }
+        validate_with_schema(root, schema_name, ledger)
+        path = root / ".review" / file_name
+        write_json(path, ledger)
+        artifacts.append({"path": str(path.relative_to(root))})
+        result[output_key] = ledger
+    append_event(
+        root,
+        "invariants.solidified",
+        {"run_id": run_id, "source_sha256": snapshot["sha256"]},
+        run_id=run_id,
+        actor="invariant_mapper",
+        artifact_refs=artifacts,
+    )
+    return result
+
+
 def validate_layer_invariants(root: Path, agent: str, output: dict[str, Any]) -> None:
     known_claims = {
-        item["id"] for item in load_json(root / ".review" / "claims.json")["claims"]
+        item["id"]
+        for item in load_json(root / ".review" / "claims.json")["claims"]
+        if item["status"] != "REMOVED"
     }
     unknown_claims = sorted(set(output["reviewed_claims"]) - known_claims)
     if unknown_claims:
@@ -428,6 +862,52 @@ def validate_layer_invariants(root: Path, agent: str, output: dict[str, Any]) ->
         raise HarnessError(f"{agent} did not cover every mapped Claim: {missing_claims}")
     if agent == "macro_architect":
         contract = output["contract"]
+        terminology = load_json(root / ".review" / "terminology.json")
+        notation = load_json(root / ".review" / "notation.json")
+        if terminology["status"] != "CURRENT" or notation["status"] != "CURRENT":
+            raise HarnessError("Macro contract requires CURRENT terminology and notation registries")
+        expected_terms = {
+            item["id"] for item in terminology["payload"]["concepts"]
+        }
+        actual_terms = {item["concept_id"] for item in contract["terminology"]}
+        expected_notation = {
+            item["id"] for item in notation["payload"]["symbols"]
+        }
+        actual_notation = {item["notation_id"] for item in contract["notation"]}
+        if actual_terms != expected_terms or actual_notation != expected_notation:
+            raise HarnessError(
+                "Macro terminology/notation contract must exactly cover the frozen registries"
+            )
+        concepts_by_id = {
+            item["id"]: item for item in terminology["payload"]["concepts"]
+        }
+        for item in contract["terminology"]:
+            source = concepts_by_id[item["concept_id"]]
+            if (
+                item["canonical"] != source["canonical_term"]
+                or item["meaning"] != source["meaning"]
+                or item["allowed_variants"] != source["aliases"]
+                or item["forbidden_variants"] != source["forbidden_variants"]
+                or item["first_definition"] != source["definition_locations"][0]
+            ):
+                raise HarnessError(
+                    f"Macro terminology entry {item['concept_id']} drifts from its registry"
+                )
+        notation_by_id = {
+            item["id"]: item for item in notation["payload"]["symbols"]
+        }
+        for item in contract["notation"]:
+            source = notation_by_id[item["notation_id"]]
+            if (
+                item["symbol"] != source["symbol"]
+                or item["canonical_form"] != source["canonical_form"]
+                or item["meaning"] != source["meaning"]
+                or item["domain_or_type"] != source["domain_or_type"]
+                or item["first_definition"] != source["definition_locations"][0]
+            ):
+                raise HarnessError(
+                    f"Macro notation entry {item['notation_id']} drifts from its registry"
+                )
         logic = contract["logic_chain"]
         identifiers = [item["id"] for item in logic]
         if len(identifiers) != len(set(identifiers)):
@@ -440,6 +920,18 @@ def validate_layer_invariants(root: Path, agent: str, output: dict[str, Any]) ->
             raise HarnessError(f"Macro logic chain references unknown nodes: {unknown}")
         if _has_cycle({item["id"]: item["depends_on"] for item in logic}):
             raise HarnessError("Macro logic chain contains a dependency cycle")
+        unknown_logic_claims = sorted(
+            {
+                claim_id
+                for item in logic
+                for claim_id in item["claim_ids"]
+                if claim_id not in known_claims
+            }
+        )
+        if unknown_logic_claims:
+            raise HarnessError(
+                f"Macro logic chain references unknown Claims: {unknown_logic_claims}"
+            )
         unresolved = (
             [
                 dimension
@@ -558,6 +1050,10 @@ def validate_layer_invariants(root: Path, agent: str, output: dict[str, Any]) ->
             "LOGIC_CHAIN",
             "TERMINOLOGY",
             "NOTATION",
+            "ARGUMENT_GRAPH",
+            "DATA_CONSISTENCY",
+            "CLAIM_CONSISTENCY",
+            "REDUNDANCY",
             "HIERARCHY",
             "LANGUAGE",
             "CLAIM_SCOPE",
@@ -690,6 +1186,10 @@ def record_revisions(root: Path, output: dict[str, Any], run_id: str) -> dict[st
     validate_with_schema(root, "revisions.schema.json", revisions_ledger)
     write_json(issues_path, issues_ledger)
     write_json(revisions_path, revisions_ledger)
+    if output["revisions"]:
+        invalidate_invariant_ledgers(
+            root, "manuscript revision requires invariant remapping", run_id
+        )
     return revisions_ledger
 
 
@@ -1134,8 +1634,12 @@ def status_summary(root: Path) -> dict[str, Any]:
         "phase": state["phase"],
         "round": state["round"],
         "active": state["active"],
-        "claims": len(claims),
-        "core_claims": sum(1 for claim in claims if claim["centrality"] == "CORE"),
+        "claims": sum(1 for claim in claims if claim["status"] != "REMOVED"),
+        "core_claims": sum(
+            1
+            for claim in claims
+            if claim["status"] != "REMOVED" and claim["centrality"] == "CORE"
+        ),
         "issues": len(issues),
         "issue_counts": dict(sorted(counts.items())),
         "last_validation_passed": state.get("last_validation_passed", False),
@@ -1144,6 +1648,12 @@ def status_summary(root: Path) -> dict[str, Any]:
         "last_request_id": state.get("last_request_id"),
         "granularity": granularity,
         "layers": {
+            "terminology_registry": load_json(root / ".review" / "terminology.json")["status"],
+            "notation_registry": load_json(root / ".review" / "notation.json")["status"],
+            "data_consistency": load_json(root / ".review" / "data_consistency.json")["status"],
+            "argument_graph": load_json(root / ".review" / "argument_graph.json")["status"],
+            "claim_consistency": load_json(root / ".review" / "claim_consistency.json")["status"],
+            "redundancy_diagnostics": load_json(root / ".review" / "redundancy.json")["status"],
             "macro_contract": load_json(root / ".review" / "global_contract.json")["status"],
             "hierarchy": load_json(root / ".review" / "structure.json")["status"],
             "granular_language": load_json(root / ".review" / "granular_review.json")["status"],

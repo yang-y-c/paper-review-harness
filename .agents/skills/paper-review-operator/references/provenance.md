@@ -12,4 +12,4 @@ Materialization writes:
 - `.review/provenance/conversations/<session-id>.json` for machine use.
 - `.review/provenance/conversations/<session-id>.md` for human review.
 
-Agent invocations live at `.review/runs/<run-id>/agents/<invocation-id>/` with `input.json`, `output.json`, `events.jsonl`, `stderr.log`, and `invocation.json`. Verify hashes against current artifacts before making strong provenance claims. The Codex transcript path may be retained as a reference but is not the canonical parsed source because its format is not a stable contract.
+Agent invocations live at `.review/runs/<run-id>/agents/<invocation-id>/` with `input.json`, `output.json`, `events.jsonl`, `stderr.log`, and `invocation.json`. Discipline-specific validator executions live at `.review/scientific-validation/<run-id>/result.json`; the record includes the source snapshot, command/stdout/stderr hashes, redacted output streams, structured result, and failure detail. Verify hashes against current artifacts before making strong provenance claims. The Codex transcript path may be retained as a reference but is not the canonical parsed source because its format is not a stable contract.

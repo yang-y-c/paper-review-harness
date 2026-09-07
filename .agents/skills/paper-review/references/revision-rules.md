@@ -2,7 +2,7 @@
 
 ## Before editing
 
-Read the Issue, verification criterion, affected Claim, dependencies, current manuscript context, and the current global, hierarchy, and granular ledgers. Every local repair must preserve its parent purpose, theme anchors, canonical terminology, notation meaning, and Claim scope. If a repair requires new evidence, an author choice, or a change to the scientific contribution or global contract, stop and mark `NEEDS_AUTHOR` with the exact missing decision.
+Read the Issue, verification criterion, affected Claim, dependencies, current manuscript context, six invariant ledgers, and the current global, hierarchy, and granular ledgers. Every local repair must preserve its parent purpose, theme anchors, canonical terminology, notation meaning, data values/conditions, argument dependencies, and Claim scope. Any manuscript edit makes the invariant ledgers stale; remap them before final audit. If a repair requires new evidence, an author choice, or a change to the scientific contribution or global contract, stop and mark `NEEDS_AUTHOR` with the exact missing decision.
 
 ## Permitted revision outcomes
 

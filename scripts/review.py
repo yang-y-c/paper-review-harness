@@ -13,8 +13,10 @@ from paper_review_lib import (
     load_config,
     load_json,
     make_run_id,
+    manuscript_snapshot,
     mark_hierarchy_not_applicable,
     merge_claim_map,
+    merge_invariant_output,
     merge_layer_output,
     merge_review_output,
     record_revisions,
@@ -37,6 +39,7 @@ RUN_PLANS = {
     "discuss": ["CLAIM_MAPPING", "ADVERSARIAL_REVIEW", "discussion packet"],
     "review": [
         "CLAIM_MAPPING",
+        "INVARIANT_MAPPING",
         "MACRO_CONTRACT",
         "HIERARCHICAL_REVIEW",
         "GRANULAR_LANGUAGE_REVIEW",
@@ -48,6 +51,7 @@ RUN_PLANS = {
     "revise": ["REVISION"],
     "verify": ["TARGETED_VERIFICATION"],
     "optimize": [
+        "INVARIANT_MAPPING",
         "MACRO_CONTRACT",
         "HIERARCHICAL_REVIEW",
         "GRANULAR_LANGUAGE_REVIEW",
@@ -57,6 +61,7 @@ RUN_PLANS = {
     ],
     "full": [
         "CLAIM_MAPPING",
+        "INVARIANT_MAPPING",
         "MACRO_CONTRACT",
         "HIERARCHICAL_REVIEW",
         "GRANULAR_LANGUAGE_REVIEW",
@@ -85,6 +90,17 @@ class Workflow:
     def issues_ledger(self) -> dict[str, Any]:
         return load_json(self.root / ".review" / "issues.json")
 
+    @property
+    def invariant_ledgers(self) -> dict[str, dict[str, Any]]:
+        return {
+            "terminology": load_json(self.root / ".review" / "terminology.json"),
+            "notation": load_json(self.root / ".review" / "notation.json"),
+            "data": load_json(self.root / ".review" / "data_consistency.json"),
+            "argument_graph": load_json(self.root / ".review" / "argument_graph.json"),
+            "claim_consistency": load_json(self.root / ".review" / "claim_consistency.json"),
+            "redundancy": load_json(self.root / ".review" / "redundancy.json"),
+        }
+
     def map_claims(self, force: bool = False) -> dict[str, Any]:
         ledger = self.claims_ledger
         if ledger["claims"] and not force:
@@ -104,8 +120,58 @@ class Workflow:
         update_state(self.root, last_run_id=run_id, active_run_id=None)
         return merged
 
+    def map_invariants(self, force: bool = False) -> dict[str, dict[str, Any]]:
+        ledgers = self.invariant_ledgers
+        snapshot = manuscript_snapshot(self.root)
+        if not force and all(
+            ledger["status"] == "CURRENT"
+            and ledger["source_snapshot"] is not None
+            and ledger["source_snapshot"] == snapshot
+            for ledger in ledgers.values()
+        ):
+            return ledgers
+        claims = [
+            claim for claim in self.map_claims()["claims"] if claim["status"] != "REMOVED"
+        ]
+        update_state(self.root, phase="INVARIANT_MAPPING")
+        run_id = make_run_id("invariant-map")
+        update_state(self.root, active_run_id=run_id)
+        output = self.runner.run(
+            "invariant_mapper",
+            {
+                "task": (
+                    "Map cross-paper invariants into terminology, notation, data, argument, "
+                    "Claim-consistency, and redundancy structures."
+                ),
+                "main_tex": self.config["main_tex"],
+                "manuscript_roots": self.config["manuscript_roots"],
+                "bibliography_files": self.config.get("bibliography_files", []),
+                "claims": claims,
+                "source_snapshot": snapshot,
+                "constraints": [
+                    "Map semantic facts; do not decide discipline-specific scientific truth.",
+                    "Use exact locations and do not invent definitions, data, support, or intent.",
+                    "Semantic similarity is diagnostic and never a universal hard failure.",
+                ],
+            },
+            run_id,
+        )
+        merged = merge_invariant_output(self.root, output, run_id)
+        update_state(self.root, last_run_id=run_id, active_run_id=None)
+        return {
+            "terminology": merged["terminology_registry"],
+            "notation": merged["notation_registry"],
+            "data": merged["data_registry"],
+            "argument_graph": merged["argument_graph"],
+            "claim_consistency": merged["claim_consistency"],
+            "redundancy": merged["redundancy_diagnostics"],
+        }
+
     def macro_control(self) -> dict[str, Any]:
-        claims = self.map_claims()["claims"]
+        claims = [
+            claim for claim in self.map_claims()["claims"] if claim["status"] != "REMOVED"
+        ]
+        invariants = self.map_invariants()
         update_state(self.root, phase="MACRO_CONTRACT")
         run_id = make_run_id("macro-contract")
         update_state(self.root, active_run_id=run_id)
@@ -116,6 +182,10 @@ class Workflow:
                 "main_tex": self.config["main_tex"],
                 "manuscript_roots": self.config["manuscript_roots"],
                 "claims": claims,
+                "terminology_registry": invariants["terminology"]["payload"],
+                "notation_registry": invariants["notation"]["payload"],
+                "argument_graph": invariants["argument_graph"]["payload"],
+                "claim_consistency": invariants["claim_consistency"]["payload"],
                 "required_dimensions": [
                     "title",
                     "abstract",
@@ -140,7 +210,11 @@ class Workflow:
         contract = load_json(self.root / ".review" / "global_contract.json")
         if contract["status"] != "CURRENT":
             raise HarnessError("Hierarchy review requires a CURRENT global contract")
-        claims = self.claims_ledger["claims"]
+        claims = [
+            claim
+            for claim in self.claims_ledger["claims"]
+            if claim["status"] != "REMOVED"
+        ]
         update_state(self.root, phase="HIERARCHICAL_REVIEW")
         run_id = make_run_id("hierarchy-review")
         update_state(self.root, active_run_id=run_id)
@@ -220,7 +294,12 @@ class Workflow:
                 "granular_review": load_json(
                     self.root / ".review" / "granular_review.json"
                 ),
-                "claims": self.claims_ledger["claims"],
+                "claims": [
+                    claim
+                    for claim in self.claims_ledger["claims"]
+                    if claim["status"] != "REMOVED"
+                ],
+                "invariants": self.invariant_ledgers,
                 "constraints": [
                     "Do not read revisions.json or reviser run outputs.",
                     "Do not edit files.",
@@ -251,6 +330,15 @@ class Workflow:
                 "task": "Independently review only the assigned Claims and relevant manuscript context.",
                 "main_tex": self.config["main_tex"],
                 "claims": claims,
+                "argument_graph": load_json(
+                    self.root / ".review" / "argument_graph.json"
+                ),
+                "claim_consistency": load_json(
+                    self.root / ".review" / "claim_consistency.json"
+                ),
+                "data_consistency": load_json(
+                    self.root / ".review" / "data_consistency.json"
+                ),
                 "constraints": [
                     "Do not read .review/runs from other agents.",
                     "Do not edit files.",
@@ -267,8 +355,11 @@ class Workflow:
         *,
         run_final_audit: bool = True,
     ) -> list[str]:
-        claims = self.map_claims()["claims"]
+        claims = [
+            claim for claim in self.map_claims()["claims"] if claim["status"] != "REMOVED"
+        ]
         reset_layer_ledgers(self.root)
+        self.map_invariants(force=True)
         self.macro_control()
         self.hierarchy_control(granularity)
         self.granular_control(granularity)
@@ -280,7 +371,7 @@ class Workflow:
         else:
             selected = claims
 
-        completed_agents: list[str] = ["macro_architect"]
+        completed_agents: list[str] = ["invariant_mapper", "macro_architect"]
         if granularity != "MACRO_ONLY":
             completed_agents.append("hierarchy_reviewer")
         completed_agents.append("language_coherence_reviewer")
@@ -430,6 +521,15 @@ class Workflow:
             "selected_granularity": load_json(
                 self.root / ".review" / "granular_review.json"
             ),
+            "terminology_registry": load_json(self.root / ".review" / "terminology.json"),
+            "notation_registry": load_json(self.root / ".review" / "notation.json"),
+            "data_consistency": load_json(
+                self.root / ".review" / "data_consistency.json"
+            ),
+            "argument_graph": load_json(self.root / ".review" / "argument_graph.json"),
+            "claim_consistency": load_json(
+                self.root / ".review" / "claim_consistency.json"
+            ),
             "constraints": [
                 "Do not set any Issue to RESOLVED.",
                 "Use NEEDS_AUTHOR instead of inventing evidence or intent.",
@@ -447,7 +547,11 @@ class Workflow:
         ]
         if not targets:
             return 0
-        claims = self.claims_ledger["claims"]
+        claims = [
+            claim
+            for claim in self.claims_ledger["claims"]
+            if claim["status"] != "REMOVED"
+        ]
         claim_by_id = {claim["id"]: claim for claim in claims}
         direct_ids = {issue["claim_id"] for issue in targets if issue.get("claim_id")}
         affected_ids = reverse_dependencies(claims, direct_ids)
@@ -479,6 +583,13 @@ class Workflow:
             "main_tex": self.config["main_tex"],
             "issues": sanitized_issues,
             "claims": relevant_claims,
+            "argument_graph": load_json(self.root / ".review" / "argument_graph.json"),
+            "claim_consistency": load_json(
+                self.root / ".review" / "claim_consistency.json"
+            ),
+            "data_consistency": load_json(
+                self.root / ".review" / "data_consistency.json"
+            ),
             "constraints": [
                 "Do not read revisions.json or reviser run outputs.",
                 "Do not infer what the reviser intended.",
@@ -515,8 +626,11 @@ class Workflow:
         ]
         if blockers:
             raise HarnessError("Optimization is blocked until unresolved BLOCKER Issues are addressed")
-        claims = self.map_claims()["claims"]
+        claims = [
+            claim for claim in self.map_claims()["claims"] if claim["status"] != "REMOVED"
+        ]
         reset_layer_ledgers(self.root)
+        self.map_invariants(force=True)
         self.macro_control()
         self.hierarchy_control(granularity)
         self.granular_control(granularity)
@@ -534,6 +648,15 @@ class Workflow:
                 "task": "Review argument architecture and communication for optimization; report semantic risks as higher severity.",
                 "main_tex": self.config["main_tex"],
                 "claims": targets,
+                "argument_graph": load_json(
+                    self.root / ".review" / "argument_graph.json"
+                ),
+                "claim_consistency": load_json(
+                    self.root / ".review" / "claim_consistency.json"
+                ),
+                "data_consistency": load_json(
+                    self.root / ".review" / "data_consistency.json"
+                ),
                 "constraints": ["Do not edit", "Do not read prior run outputs"],
             },
             run_id,
@@ -542,6 +665,10 @@ class Workflow:
         update_state(self.root, last_run_id=run_id, active_run_id=None)
         revised = self.revise()
         verified = self.verify()
+        if revised:
+            self.map_claims(force=True)
+            self.map_invariants(force=True)
+            self.macro_control()
         self.hierarchy_control(granularity)
         self.granular_control(granularity)
         audit = self.final_audit(granularity)
@@ -563,9 +690,12 @@ class Workflow:
             actionable = [
                 issue for issue in self.issues_ledger["issues"] if issue["status"] == "OPEN"
             ]
-            if actionable:
-                self.revise()
+            revised = self.revise() if actionable else 0
             self.verify()
+            if revised:
+                self.map_claims(force=True)
+                self.map_invariants(force=True)
+                self.macro_control()
             self.hierarchy_control(granularity)
             self.granular_control(granularity)
             self.final_audit(granularity)
@@ -751,6 +881,12 @@ def main(argv: list[str] | None = None) -> int:
                     {"path": ".review/issues.json"},
                     {"path": ".review/revisions.json"},
                     {"path": ".review/verifications.json"},
+                    {"path": ".review/terminology.json"},
+                    {"path": ".review/notation.json"},
+                    {"path": ".review/data_consistency.json"},
+                    {"path": ".review/argument_graph.json"},
+                    {"path": ".review/claim_consistency.json"},
+                    {"path": ".review/redundancy.json"},
                     {"path": ".review/global_contract.json"},
                     {"path": ".review/structure.json"},
                     {"path": ".review/granular_review.json"},

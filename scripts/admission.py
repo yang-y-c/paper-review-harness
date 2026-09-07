@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import uuid
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,7 @@ INTENT_AGENTS = {
     "REVISE": {"reviser"},
     "VERIFY": {"verifier"},
     "OPTIMIZE": {
+        "invariant_mapper",
         "macro_architect",
         "hierarchy_reviewer",
         "language_coherence_reviewer",
@@ -226,6 +228,64 @@ def evaluate_admission(root: Path, request: dict[str, Any]) -> dict[str, Any]:
         "A15",
         humanizer_ok,
         f"Required humanizer skill is available: {humanizer_path}",
+    )
+    invariant_artifacts = [
+        ("terminology.json", "terminology-registry.schema.json"),
+        ("notation.json", "notation-registry.schema.json"),
+        ("data_consistency.json", "data-registry.schema.json"),
+        ("argument_graph.json", "argument-graph.schema.json"),
+        ("claim_consistency.json", "claim-consistency.schema.json"),
+        ("redundancy.json", "redundancy-diagnostics.schema.json"),
+    ]
+    missing_invariants = [
+        name
+        for ledger, schema in invariant_artifacts
+        for name, path in [
+            (ledger, root / ".review" / ledger),
+            (schema, root / ".review" / "schemas" / schema),
+        ]
+        if not path.is_file()
+    ]
+    invariant_ready = intent not in LAYERED_INTENTS or not missing_invariants
+    _check(
+        checks,
+        "A16",
+        invariant_ready,
+        "Invariant ledger templates and schemas are present"
+        if invariant_ready
+        else f"Missing invariant artifacts={missing_invariants}",
+    )
+    scientific = config.get("scientific_validators", [])
+    scientific_ids: list[str] = []
+    scientific_config_ok = isinstance(scientific, list)
+    if scientific_config_ok:
+        for item in scientific:
+            if not isinstance(item, dict):
+                scientific_config_ok = False
+                break
+            identifier = item.get("id")
+            command = item.get("command")
+            timeout = item.get("timeout_seconds", 300)
+            if (
+                not isinstance(identifier, str)
+                or re.fullmatch(r"[a-z][a-z0-9_-]{1,63}", identifier) is None
+                or identifier in scientific_ids
+                or not isinstance(command, list)
+                or not command
+                or not all(isinstance(part, str) and part for part in command)
+                or not isinstance(item.get("required", True), bool)
+                or not isinstance(timeout, int)
+                or not 1 <= timeout <= 3600
+            ):
+                scientific_config_ok = False
+                break
+            scientific_ids.append(identifier)
+    scientific_config_ok = intent != "FULL" or scientific_config_ok
+    _check(
+        checks,
+        "A17",
+        scientific_config_ok,
+        "Scientific-validator configuration is structurally executable",
     )
     report = {
         "schema_version": 1,

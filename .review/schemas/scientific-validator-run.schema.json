@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "validator_id", "executed_at", "required", "source_snapshot", "command_sha256", "return_code", "stdout_sha256", "stderr_sha256", "stdout", "stderr", "output", "error"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "validator_id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{1,63}$"},
+    "executed_at": {"type": "string", "format": "date-time"},
+    "required": {"type": "boolean"},
+    "source_snapshot": {"$ref": "source-snapshot.schema.json#/$defs/source_snapshot"},
+    "command_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "return_code": {"type": ["integer", "null"]},
+    "stdout_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "stderr_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "stdout": {"type": "string"},
+    "stderr": {"type": "string"},
+    "output": {"oneOf": [{"type": "null"}, {"$ref": "scientific-validator-result.schema.json"}]},
+    "error": {"type": ["string", "null"]}
+  }
+}

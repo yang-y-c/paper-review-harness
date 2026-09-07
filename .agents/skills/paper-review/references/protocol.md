@@ -3,7 +3,7 @@
 ## State machine
 
 ```text
-INGEST -> CLAIM_MAPPING -> MACRO_CONTRACT -> HIERARCHICAL_REVIEW
+INGEST -> CLAIM_MAPPING -> INVARIANT_MAPPING -> MACRO_CONTRACT -> HIERARCHICAL_REVIEW
        -> GRANULAR_LANGUAGE_REVIEW -> INDEPENDENT_REVIEW -> ISSUE_SYNTHESIS
        -> ADVERSARIAL_REVIEW -> REVISION -> TARGETED_VERIFICATION
        -> FINAL_INTEGRITY_AUDIT -> DETERMINISTIC_VALIDATION -> ACCEPT
@@ -20,10 +20,11 @@ Operate on selected Claims. Use claim mapper when the Claim does not exist, argu
 ### Review
 
 1. Map Claims and coverage.
-2. Route each Claim by type and risk.
-3. Run theory, algorithm, numerical, and argument reviewers independently and concurrently when useful.
-4. Merge findings by evidence and verification criterion. Preserve substantive disagreements.
-5. Run challenger on every `STRONG` or `EXTREME` Claim.
+2. Map cross-paper invariant registries and the argument graph.
+3. Route each Claim by type and risk.
+4. Run theory, algorithm, numerical, and argument reviewers independently and concurrently when useful.
+5. Merge findings by evidence and verification criterion. Preserve substantive disagreements.
+6. Run challenger on every `STRONG` or `EXTREME` Claim.
 
 Routing:
 

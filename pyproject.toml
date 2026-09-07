@@ -1,7 +1,7 @@
 [project]
 name = "paper-review-harness"
-version = "0.2.0"
-description = "Hierarchical Codex workflow for manuscript control, review, revision, and verification"
+version = "0.3.0"
+description = "Codex manuscript review workflow with invariant registries and deterministic acceptance gates"
 requires-python = ">=3.11"
 dependencies = ["jsonschema>=4.21"]
 

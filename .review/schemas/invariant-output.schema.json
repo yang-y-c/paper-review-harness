@@ -1,0 +1,337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "agent",
+    "reviewed_claims",
+    "terminology_registry",
+    "notation_registry",
+    "data_registry",
+    "argument_graph",
+    "claim_consistency",
+    "redundancy_diagnostics",
+    "issues",
+    "review_notes"
+  ],
+  "$defs": {
+    "terminology_registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["concepts", "unregistered_critical_terms"],
+      "properties": {
+        "concepts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "canonical_term", "meaning", "aliases", "forbidden_variants", "definition_locations", "occurrences", "status", "notes"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^T[0-9]{2,}$"},
+              "canonical_term": {"type": "string", "minLength": 1},
+              "meaning": {"type": "string", "minLength": 1},
+              "aliases": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+              "forbidden_variants": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+              "definition_locations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+              "occurrences": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["location", "surface_form", "usage", "meaning_alignment"],
+                  "properties": {
+                    "location": {"type": "string", "minLength": 1},
+                    "surface_form": {"type": "string", "minLength": 1},
+                    "usage": {"enum": ["CANONICAL", "ALIAS", "FORBIDDEN", "CONFLICT"]},
+                    "meaning_alignment": {"enum": ["MATCH", "CONFLICT", "NEEDS_AUTHOR"]}
+                  }
+                }
+              },
+              "status": {"enum": ["CLEAR", "CONFLICT", "NEEDS_AUTHOR"]},
+              "notes": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        },
+        "unregistered_critical_terms": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["term", "locations", "reason"],
+            "properties": {
+              "term": {"type": "string", "minLength": 1},
+              "locations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+              "reason": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "notation_registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["symbols", "unregistered_critical_symbols"],
+      "properties": {
+        "symbols": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "symbol", "canonical_form", "meaning", "domain_or_type", "definition_locations", "occurrences", "status", "notes"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^N[0-9]{2,}$"},
+              "symbol": {"type": "string", "minLength": 1},
+              "canonical_form": {"type": "string", "minLength": 1},
+              "meaning": {"type": "string", "minLength": 1},
+              "domain_or_type": {"type": "string", "minLength": 1},
+              "definition_locations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+              "occurrences": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["location", "surface_form", "meaning", "domain_or_type", "alignment"],
+                  "properties": {
+                    "location": {"type": "string", "minLength": 1},
+                    "surface_form": {"type": "string", "minLength": 1},
+                    "meaning": {"type": "string", "minLength": 1},
+                    "domain_or_type": {"type": "string", "minLength": 1},
+                    "alignment": {"enum": ["MATCH", "CONFLICT", "NEEDS_AUTHOR"]}
+                  }
+                }
+              },
+              "status": {"enum": ["CLEAR", "CONFLICT", "NEEDS_AUTHOR"]},
+              "notes": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        },
+        "unregistered_critical_symbols": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["symbol", "locations", "reason"],
+            "properties": {
+              "symbol": {"type": "string", "minLength": 1},
+              "locations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+              "reason": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "data_registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["records", "unmapped_material_values"],
+      "properties": {
+        "records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label", "kind", "canonical_value", "unit", "conditions", "source_locations", "claim_ids", "occurrences", "status", "notes"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^DTA-[0-9]{2,}$"},
+              "label": {"type": "string", "minLength": 1},
+              "kind": {"enum": ["DATASET", "SAMPLE", "PARAMETER", "METRIC", "RESULT", "STATISTIC", "TABLE", "FIGURE", "OTHER"]},
+              "canonical_value": {"type": "string", "minLength": 1},
+              "unit": {"type": ["string", "null"]},
+              "conditions": {"type": "string"},
+              "source_locations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+              "claim_ids": {"type": "array", "items": {"type": "string", "pattern": "^C[0-9]{2,}$"}, "uniqueItems": true},
+              "occurrences": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["location", "value", "unit", "conditions", "relation", "justification"],
+                  "properties": {
+                    "location": {"type": "string", "minLength": 1},
+                    "value": {"type": "string", "minLength": 1},
+                    "unit": {"type": ["string", "null"]},
+                    "conditions": {"type": "string"},
+                    "relation": {"enum": ["MATCH", "AUTHORIZED_VARIATION", "CONFLICT", "NEEDS_AUTHOR"]},
+                    "justification": {"type": ["string", "null"]}
+                  }
+                }
+              },
+              "status": {"enum": ["CLEAR", "CONFLICT", "NEEDS_AUTHOR"]},
+              "notes": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        },
+        "unmapped_material_values": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["value", "location", "reason"],
+            "properties": {
+              "value": {"type": "string", "minLength": 1},
+              "location": {"type": "string", "minLength": 1},
+              "reason": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "argument_graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "edges"],
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "type", "statement", "claim_id", "data_ids", "locations"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^AG-N[0-9]{3,}$"},
+              "type": {"enum": ["PROBLEM", "GAP", "QUESTION", "ASSUMPTION", "PREMISE", "METHOD", "DERIVATION", "DATA", "EVIDENCE", "REFERENCE", "CLAIM", "CONCLUSION", "LIMITATION"]},
+              "statement": {"type": "string", "minLength": 1},
+              "claim_id": {"type": ["string", "null"], "pattern": "^C[0-9]{2,}$"},
+              "data_ids": {"type": "array", "items": {"type": "string", "pattern": "^DTA-[0-9]{2,}$"}, "uniqueItems": true},
+              "locations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "source_id", "target_id", "relation", "locations"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^AG-E[0-9]{3,}$"},
+              "source_id": {"type": "string", "pattern": "^AG-N[0-9]{3,}$"},
+              "target_id": {"type": "string", "pattern": "^AG-N[0-9]{3,}$"},
+              "relation": {"enum": ["MOTIVATES", "DEPENDS_ON", "SUPPORTS", "DERIVES", "VALIDATES", "QUALIFIES", "CONTRADICTS", "LIMITS"]},
+              "locations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+            }
+          }
+        }
+      }
+    },
+    "claim_consistency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["records", "unmapped_claim_occurrences"],
+      "properties": {
+        "records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["claim_id", "canonical_statement", "canonical_scope", "support_node_ids", "body_locations", "occurrences", "status", "notes"],
+            "properties": {
+              "claim_id": {"type": "string", "pattern": "^C[0-9]{2,}$"},
+              "canonical_statement": {"type": "string", "minLength": 1},
+              "canonical_scope": {"type": "string"},
+              "support_node_ids": {"type": "array", "items": {"type": "string", "pattern": "^AG-N[0-9]{3,}$"}, "uniqueItems": true},
+              "body_locations": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+              "occurrences": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["id", "location", "role", "statement", "scope_relation", "synchronized"],
+                  "properties": {
+                    "id": {"type": "string", "pattern": "^OCC-[0-9]{3,}$"},
+                    "location": {"type": "string", "minLength": 1},
+                    "role": {"enum": ["ABSTRACT", "INTRODUCTION", "BODY", "CONTRIBUTION", "RESULT", "DISCUSSION", "CONCLUSION", "HIGHLIGHT", "OTHER"]},
+                    "statement": {"type": "string", "minLength": 1},
+                    "scope_relation": {"enum": ["SAME", "NARROWER", "BROADER", "CONTRADICTORY", "UNMAPPED"]},
+                    "synchronized": {"type": "boolean"}
+                  }
+                }
+              },
+              "status": {"enum": ["PASS", "FAIL", "NEEDS_AUTHOR"]},
+              "notes": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        },
+        "unmapped_claim_occurrences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["location", "statement", "reason"],
+            "properties": {
+              "location": {"type": "string", "minLength": 1},
+              "statement": {"type": "string", "minLength": 1},
+              "reason": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "redundancy_diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exact_duplicates", "contribution_duplicates", "semantic_similarity_notes"],
+      "properties": {
+        "exact_duplicates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "locations", "classification", "severity", "justification"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^RD-[0-9]{3,}$"},
+              "locations": {"type": "array", "minItems": 2, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+              "classification": {"enum": ["INTENTIONAL", "ACCIDENTAL", "NEEDS_AUTHOR"]},
+              "severity": {"enum": ["WARN", "MAJOR"]},
+              "justification": {"type": ["string", "null"]}
+            }
+          }
+        },
+        "contribution_duplicates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "locations", "claim_ids", "distinct", "rationale"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^RC-[0-9]{3,}$"},
+              "locations": {"type": "array", "minItems": 2, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+              "claim_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^C[0-9]{2,}$"}, "uniqueItems": true},
+              "distinct": {"type": "boolean"},
+              "rationale": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "semantic_similarity_notes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["locations", "diagnosis", "recommendation"],
+            "properties": {
+              "locations": {"type": "array", "minItems": 2, "items": {"type": "string", "minLength": 1}},
+              "diagnosis": {"type": "string", "minLength": 1},
+              "recommendation": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    }
+  },
+  "properties": {
+    "agent": {"const": "invariant_mapper"},
+    "reviewed_claims": {"type": "array", "items": {"type": "string", "pattern": "^C[0-9]{2,}$"}, "uniqueItems": true},
+    "terminology_registry": {"$ref": "#/$defs/terminology_registry"},
+    "notation_registry": {"$ref": "#/$defs/notation_registry"},
+    "data_registry": {"$ref": "#/$defs/data_registry"},
+    "argument_graph": {"$ref": "#/$defs/argument_graph"},
+    "claim_consistency": {"$ref": "#/$defs/claim_consistency"},
+    "redundancy_diagnostics": {"$ref": "#/$defs/redundancy_diagnostics"},
+    "issues": {"type": "array", "items": {"$ref": "review-output.schema.json#/$defs/issue"}},
+    "review_notes": {"type": "array", "items": {"type": "string"}}
+  }
+}
