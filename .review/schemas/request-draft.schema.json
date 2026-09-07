@@ -3,7 +3,7 @@
   "title": "Paper review natural-language intake result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["intent", "scope", "objectives", "constraints", "granularity", "assumptions", "missing_information", "confirmation_required", "normalization_notes"],
+  "required": ["intent", "scope", "objectives", "constraints", "granularity", "review_contract", "assumptions", "missing_information", "confirmation_required", "normalization_notes"],
   "$defs": {
     "scope": {
       "type": "object",
@@ -57,6 +57,63 @@
         "user_question": {"type": ["string", "null"]}
       }
     },
+    "review_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selection_source", "dimensions", "assurance", "revision", "budget"],
+      "properties": {
+        "selection_source": {"enum": ["USER_EXPLICIT", "SKILL_PROPOSED"]},
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["global_structure", "claims", "section_logic", "terminology", "notation", "data_consistency", "paragraph_logic", "sentence_logic", "redundancy", "language", "citations", "scientific_validity"],
+          "properties": {
+            "global_structure": {"const": true},
+            "claims": {"const": true},
+            "section_logic": {"const": true},
+            "terminology": {"const": true},
+            "notation": {"const": true},
+            "data_consistency": {"const": true},
+            "paragraph_logic": {"type": "boolean"},
+            "sentence_logic": {"enum": ["OFF", "RISK_ADAPTIVE", "FULL"]},
+            "redundancy": {"type": "boolean"},
+            "language": {"type": "boolean"},
+            "citations": {"type": "boolean"},
+            "scientific_validity": {"type": "boolean"}
+          }
+        },
+        "assurance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["overall", "core_claims", "ordinary_content"],
+          "properties": {
+            "overall": {"enum": ["FAST", "STANDARD", "STRICT"]},
+            "core_claims": {"enum": ["FAST", "STANDARD", "STRICT"]},
+            "ordinary_content": {"enum": ["FAST", "STANDARD", "STRICT"]}
+          }
+        },
+        "revision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["strategy", "structural_checkpoint", "stop_before_detail_on_structural_major"],
+          "properties": {
+            "strategy": {"enum": ["REVIEW_ONLY", "BATCH_AFTER_FULL_REVIEW", "STAGED_REVISION", "TARGETED_REVISION"]},
+            "structural_checkpoint": {"type": "boolean"},
+            "stop_before_detail_on_structural_major": {"type": "boolean"}
+          }
+        },
+        "budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profile", "max_token_amplification", "low_risk_sampling_rate"],
+          "properties": {
+            "profile": {"enum": ["ECONOMY", "BALANCED", "MAX_QUALITY"]},
+            "max_token_amplification": {"type": ["number", "null"], "exclusiveMinimum": 0},
+            "low_risk_sampling_rate": {"type": "number", "minimum": 0, "maximum": 1}
+          }
+        }
+      }
+    },
     "assumptions": {
       "type": "array",
       "items": {
@@ -77,6 +134,7 @@
     "objectives": {"$ref": "#/$defs/objectives"},
     "constraints": {"$ref": "#/$defs/constraints"},
     "granularity": {"$ref": "#/$defs/granularity"},
+    "review_contract": {"$ref": "#/$defs/review_contract"},
     "assumptions": {"$ref": "#/$defs/assumptions"},
     "missing_information": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "confirmation_required": {"type": "boolean"},
