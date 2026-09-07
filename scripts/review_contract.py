@@ -18,7 +18,6 @@ from paper_review_lib import (
     HarnessError,
     find_root,
     load_config,
-    load_json,
     make_run_id,
     reset_layer_ledgers,
     update_state,
@@ -69,7 +68,11 @@ def normalize(root: Path, natural_language: str, session_id: str | None, turn_id
         run_id,
         audit_context={"session_id": session_id, "turn_id": turn_id, "request_id": None},
     )
-    contract = draft["review_contract"]
+    if draft["intent"] not in LAYERED_INTENTS:
+        raise HarnessError("Contract-aware intake is for REVIEW, OPTIMIZE, or FULL; use legacy control for this intent")
+    contract = draft.get("review_contract")
+    if contract is None:
+        raise HarnessError("Layered intake did not produce review_contract")
     _validate_contract_shape(contract, draft["intent"])
     request = canonicalize_request(
         root,
@@ -78,10 +81,8 @@ def normalize(root: Path, natural_language: str, session_id: str | None, turn_id
         session_id=session_id,
         turn_id=turn_id,
     )
-    # canonicalize_request remains backwards-compatible with legacy requests;
-    # attach the explicit contract immediately and validate/persist the enriched request.
     request["review_contract"] = contract
-    if draft["intent"] in LAYERED_INTENTS and contract["selection_source"] == "SKILL_PROPOSED":
+    if contract["selection_source"] == "SKILL_PROPOSED":
         request["confirmation"] = {
             "required": True,
             "confirmed": False,
@@ -124,8 +125,6 @@ def effective_granularity(contract: dict[str, Any]) -> str:
         return "SENTENCE"
     if dimensions["paragraph_logic"] or dimensions["sentence_logic"] == "RISK_ADAPTIVE":
         return "ADAPTIVE"
-    # The fixed core always includes section logic. FAST therefore remains a
-    # genuine low-cost structural/core review rather than silently becoming FULL.
     return "SUBSECTION"
 
 
@@ -134,7 +133,11 @@ def summarize(request: dict[str, Any]) -> dict[str, Any]:
     if not contract:
         return {"contract": "MISSING"}
     dimensions = contract["dimensions"]
-    enabled = [name for name, value in dimensions.items() if value is True or value in {"RISK_ADAPTIVE", "FULL"}]
+    enabled = [
+        name
+        for name, value in dimensions.items()
+        if value is True or value in {"RISK_ADAPTIVE", "FULL"}
+    ]
     disabled = [name for name, value in dimensions.items() if value is False or value == "OFF"]
     return {
         "intent": request["intent"],
@@ -197,8 +200,16 @@ def structural_checkpoint(workflow: Workflow, granularity: str, max_rounds: int)
         revised = workflow.revise(severities={"BLOCKER", "MAJOR"})
         workflow.verify()
         if revised == 0:
-            return {"status": "BLOCKED", "attempts": attempts, "reason": "Structural issues remain but no machine revision was produced"}
-    return {"status": "BLOCKED", "attempts": attempts, "reason": "Structural checkpoint did not converge within max_rounds"}
+            return {
+                "status": "BLOCKED",
+                "attempts": attempts,
+                "reason": "Structural issues remain but no machine revision was produced",
+            }
+    return {
+        "status": "BLOCKED",
+        "attempts": attempts,
+        "reason": "Structural checkpoint did not converge within max_rounds",
+    }
 
 
 def _profile_review(workflow: Workflow, request: dict[str, Any], *, final_audit: bool = True) -> list[str]:
@@ -206,6 +217,17 @@ def _profile_review(workflow: Workflow, request: dict[str, Any], *, final_audit:
     granularity = effective_granularity(contract)
     selected = request["scope"].get("claim_ids") or None
     return workflow.review(selected, granularity=granularity, run_final_audit=final_audit)
+
+
+def _staged_optimize(workflow: Workflow, request: dict[str, Any]) -> dict[str, Any]:
+    contract = request["review_contract"]
+    granularity = effective_granularity(contract)
+    max_rounds = request["constraints"].get("max_rounds") or int(workflow.config["max_rounds"])
+    checkpoint = structural_checkpoint(workflow, granularity, max_rounds)
+    if checkpoint["status"] != "STABLE":
+        raise HarnessError(checkpoint["reason"])
+    optimized = workflow.optimize(granularity)
+    return {"status": "COMPLETED", "structural_checkpoint": checkpoint, "optimization": optimized}
 
 
 def _staged_full(workflow: Workflow, request: dict[str, Any]) -> dict[str, Any]:
@@ -241,14 +263,22 @@ def _staged_full(workflow: Workflow, request: dict[str, Any]) -> dict[str, Any]:
                 "verified": verified,
                 "validation": last_report,
             }
-        remaining = [i for i in workflow.issues_ledger["issues"] if i["status"] in {"OPEN", "CLAIMED_FIXED"}]
+        remaining = [
+            i
+            for i in workflow.issues_ledger["issues"]
+            if i["status"] in {"OPEN", "CLAIMED_FIXED"}
+        ]
         if not remaining:
-            raise HarnessError("Validation failed with no machine-actionable Issue; author input or configuration is required")
+            raise HarnessError(
+                "Validation failed with no machine-actionable Issue; author input or configuration is required"
+            )
     raise HarnessError(f"Contract-driven full review did not converge within {max_rounds} rounds")
 
 
 def execute(root: Path, request_id: str, dry_run: bool = False) -> dict[str, Any]:
     request = load_request(root, request_id)
+    if request["intent"] not in LAYERED_INTENTS:
+        raise HarnessError("Contract runner executes REVIEW, OPTIMIZE, or FULL layered tasks only")
     contract = _require_contract_confirmation(request)
     admission = require_admission(root, request)
     plan = {
@@ -264,16 +294,20 @@ def execute(root: Path, request_id: str, dry_run: bool = False) -> dict[str, Any
     workflow = Workflow(root)
     request["status"] = "EXECUTING"
     save_request(root, request)
-    append_event(root, "contract_workflow.started", plan, request_id=request_id, actor="review-contract-runner")
+    append_event(
+        root,
+        "contract_workflow.started",
+        plan,
+        request_id=request_id,
+        actor="review-contract-runner",
+    )
     intent = request["intent"]
     strategy = contract["revision"]["strategy"]
     if intent == "REVIEW":
         result: Any = {"agents": _profile_review(workflow, request, final_audit=True)}
-    elif intent == "REVISE":
-        result = {"revisions": workflow.revise()}
-    elif intent == "VERIFY":
-        result = {"verifications": workflow.verify()}
-    elif intent in {"OPTIMIZE", "FULL"} and strategy == "STAGED_REVISION":
+    elif intent == "OPTIMIZE" and strategy == "STAGED_REVISION":
+        result = _staged_optimize(workflow, request)
+    elif intent == "FULL" and strategy == "STAGED_REVISION":
         result = _staged_full(workflow, request)
     elif intent == "OPTIMIZE":
         result = workflow.optimize(effective_granularity(contract))
@@ -284,7 +318,13 @@ def execute(root: Path, request_id: str, dry_run: bool = False) -> dict[str, Any
         raise HarnessError(f"Unsupported contract execution intent: {intent}")
     request["status"] = "COMPLETED"
     save_request(root, request)
-    append_event(root, "contract_workflow.completed", {"request_id": request_id}, request_id=request_id, actor="review-contract-runner")
+    append_event(
+        root,
+        "contract_workflow.completed",
+        {"request_id": request_id},
+        request_id=request_id,
+        actor="review-contract-runner",
+    )
     return {"plan": plan, "result": result}
 
 
