@@ -3,7 +3,7 @@
   "title": "Paper review natural-language intake result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["intent", "scope", "objectives", "constraints", "granularity", "review_contract", "assumptions", "missing_information", "confirmation_required", "normalization_notes"],
+  "required": ["intent", "scope", "objectives", "constraints", "granularity", "assumptions", "missing_information", "confirmation_required", "normalization_notes"],
   "$defs": {
     "scope": {
       "type": "object",
