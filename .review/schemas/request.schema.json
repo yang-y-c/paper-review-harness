@@ -25,6 +25,7 @@
     "objectives": {"$ref": "request-draft.schema.json#/$defs/objectives"},
     "constraints": {"$ref": "request-draft.schema.json#/$defs/constraints"},
     "granularity": {"$ref": "request-draft.schema.json#/$defs/granularity"},
+    "review_contract": {"$ref": "request-draft.schema.json#/$defs/review_contract"},
     "assumptions": {"$ref": "request-draft.schema.json#/$defs/assumptions"},
     "missing_information": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "confirmation": {
